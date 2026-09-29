@@ -3418,7 +3418,7 @@ function openImportModal(targetSubj,targetBank){
       +'&lt;div id=&quot;mResult&quot;&gt;&lt;/div&gt;',
     fmt:'&lt;b&gt;题目文本&lt;/b&gt;：题号开头、选项独立成行、含「答案」「解析」行，自动识别单选/多选/判断/填空/简答。&lt;br&gt;Word / Excel / 文字版 PDF / zip 可直接选文件；扫描版 PDF 请先提取文字。识别后可逐题核对编辑。',
     okText:'解析题目',
-    onImport:(text)=&gt;{ const v=text.trim(); if(!v){toast('请先粘贴或选择文件');return;} showParseResult(v,'粘贴文本'); }
+    onImport:(text,doc,src)=&gt;{ const v=text.trim(); if(!v){toast('请先粘贴或选择文件');return;} showParseResult(v,src||'粘贴文本'); }
   };
   openModal(parent.StudyFiles.dialogHTML(o));
   parent.StudyFiles.bindDialog(document,o);
@@ -6896,9 +6896,9 @@ async function syncOpen(){
   const autoOn=autoSync.on();
   const pct=quotaMB?Math.min(100,usedMB/quotaMB*100):0;
   $('syncBox').innerHTML=
-    '<div class="sync-head"><h3>云端同步</h3><span class="sync-acc">内置账号 · 开箱即用</span></div>'
+    '<div class="sync-head"><h3>云端同步</h3><span class="sync-acc">'+(ghPat()?'已配置':'未配置 · 需填一次令牌')+'</span></div>'
     +'<div class="sync-status">'
-      +'<div class="ss-row"><span class="ss-k">云端账号</span><span class="ss-v">@'+esc(ghOwner())+(custom?'（自定义）':'（内置）')+'</span></div>'
+      +'<div class="ss-row"><span class="ss-k">云端账号</span><span class="ss-v">@'+esc(ghOwner())+(ghPat()?'（本机已保存令牌）':'（尚未填令牌）')+'</span></div>'
       +'<div class="ss-row"><span class="ss-k">上次上传</span><span class="ss-v">'+esc(lastUp)+'</span></div>'
       +'<div class="ss-row"><span class="ss-k">本机存储</span><span class="ss-v">已用 '+usedMB.toFixed(1)+' MB / 可用约 '+Math.max(0,quotaMB-usedMB).toFixed(0)+' MB</span></div>'
     +'</div>'
@@ -6908,12 +6908,14 @@ async function syncOpen(){
       +'<button class="sync-big-btn" onclick="cloudCheckNow()"><b>立即检查</b><span>拉取云端最新备份</span></button>'
     +'</div>'
     +'<label class="sync-switch"><input type="checkbox" '+(autoOn?'checked':'')+' onchange="autoSync.set(this.checked);toast(this.checked?\'已开启自动同步\':\'已关闭自动同步\')"><span class="sw-track"><i></i></span><span class="sw-label">自动同步（数据变化约 25 秒后自动上传）</span></label>'
-    +'<details class="sync-adv"><summary>高级：使用自己的云端账号</summary>'
-      +'<p class="tip">默认使用内置账号、所有设备共享。若想完全独立，可在 GitHub 建仓库、生成令牌后填到这里。</p>'
+    +'<details class="sync-adv"'+(ghPat()?'':' open')+'><summary>云端账号设置</summary>'
+      +'<p class="tip">令牌只保存在<b>本机浏览器</b>，不会写进网页。填一次即可长期使用；换设备时用下面的「一次性配置链接」最省事。</p>'
       +'<input id="ghOwner" placeholder="GitHub 用户名" value="'+esc(ghOwner())+'" class="sync-in">'
-      +'<input id="ghPat" type="password" placeholder="GitHub 令牌" value="'+esc(ghPat())+'" class="sync-in">'
+      +'<input id="ghPat" type="password" placeholder="GitHub 令牌（github_pat_…）" value="'+esc(ghPat())+'" class="sync-in">'
       +'<div class="btn-row"><button class="btn primary" onclick="saveGh()">保存</button>'
-      +(custom?'<button class="btn" onclick="resetGh()">恢复内置账号</button>':'')+'</div>'
+      +(ghPat()?'<button class="btn" onclick="makeConfigLink()">生成一次性配置链接</button>':'')
+      +'<button class="btn" onclick="clearGh()">清除本机令牌</button></div>'
+      +'<div class="tip" id="cfgLinkTip"></div>'
     +'</details>'
     +'<details class="sync-adv"><summary>本地文件备份 / 恢复（不经过云端）</summary>'
       +'<div class="btn-row"><button class="btn" onclick="syncBackup()">下载全部数据 .json</button>'
@@ -7241,7 +7243,9 @@ const StudyFiles={
     drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
     drop.addEventListener('drop',e=>{ e.preventDefault(); drop.classList.remove('over'); const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
     inp.addEventListener('change',()=>{ const f=inp.files[0]; if(f) loadFile(f); inp.value=''; });
+    let lastName='';
     const loadFile=async f=>{
+      lastName=(f&&f.name)?f.name:'';
       say('正在解析「'+f.name+'」…');
       try{
         const r=await this.read(f);
@@ -7251,7 +7255,7 @@ const StudyFiles={
         if(o.onParsed) o.onParsed(r,doc);
       }catch(e){ say(e.message||('解析失败'),true); }
     };
-    doc.getElementById('sfOK').addEventListener('click',()=>{ const v=txt.value; o.onImport(v,doc); });
+    doc.getElementById('sfOK').addEventListener('click',()=>{ const v=txt.value; o.onImport(v,doc,lastName?('文件：'+lastName):'粘贴文本'); });
   },
   /* ===== 字段表头识别：导入列顺序任意也能对上 ===== */
   FIELD_ALIAS:{
@@ -7712,19 +7716,36 @@ function chunkCard(profileId,raw){
 function saveGh(){
   const owner=document.getElementById('ghOwner').value.trim()||DEFAULT_GH_OWNER;
   const pat=document.getElementById('ghPat').value.trim();
-  if(!pat){ toast('请粘贴令牌，或留空使用内置账号'); return; }
+  if(!pat){ toast('请粘贴 GitHub 令牌'); return; }
   localStorage.setItem('ghOwner',owner);
   localStorage.setItem('ghPat',pat);
   toast('正在验证…');
   fetch('https://api.github.com/user',{headers:{Authorization:'Bearer '+pat,Accept:'application/vnd.github+json'}})
     .then(r=>r.json())
-    .then(j=>{ if(j.login){ updateCloudDot(); toast('已切换为自定义账号 @'+j.login); } else { toast('令牌似乎无效'); } })
-    .catch(()=>toast('暂时无法访问 GitHub'));
+    .then(j=>{
+      if(j.login){ updateCloudDot(); toast('已验证：@'+j.login); syncOpen(); }
+      else{ localStorage.removeItem('ghPat'); updateCloudDot(); toast('令牌无效，已取消保存'); }
+    })
+    .catch(()=>{ updateCloudDot(); toast('暂时访问不到 GitHub，令牌已保存，可点「立即检查」重试'); });
 }
-function resetGh(){
+/* 生成一次性配置链接：其他设备打开一次即写入令牌，省去每台设备手打 */
+function makeConfigLink(){
+  const pat=ghPat();
+  if(!pat){ toast('请先填入令牌并保存'); return; }
+  const url=location.origin+location.pathname+'#t='+encodeURIComponent(pat)+'&o='+encodeURIComponent(ghOwner());
+  const tip=document.getElementById('cfgLinkTip');
+  if(tip){
+    tip.innerHTML='把这条链接发到其他设备，各打开一次即自动配置（<b>链接里含令牌，不要公开</b>）：'
+      +'<textarea readonly style="width:100%;min-height:88px;margin-top:6px;font-size:12px;padding:8px;border:1px solid var(--line);border-radius:8px">'+esc(url)+'</textarea>';
+  }
+  try{ navigator.clipboard.writeText(url).then(()=>toast('一次性配置链接已复制')).catch(()=>toast('链接已生成，请手动复制')); }
+  catch(e){ toast('链接已生成，请手动复制'); }
+}
+function clearGh(){
   localStorage.removeItem('ghOwner'); localStorage.removeItem('ghPat');
-  updateCloudDot(); toast('已恢复为内置云端账号');
+  updateCloudDot(); toast('已清除本机令牌'); try{ syncOpen(); }catch(e){}
 }
+function resetGh(){ clearGh(); }
 
 /* ---------- 一键上传（Git Data API：所有文件一个原子提交，不 409、可重试） ---------- */
 async function ghUpload(opts){
