@@ -7805,12 +7805,15 @@ async function ghUpload(opts){
     }
     throw lastErr;
   }catch(e){
+    /* 静默同步出错时界面无提示，留一条控制台线索便于排查（用 warn 不用 error，避免误判为页面报错） */
+    try{ console.warn('[同步失败] '+(e&&e.message)+'  @'+window._ghStage); }catch(_){}
     setSyncState('err');
     if(!opts.silent) toast('同步失败：'+e.message);
   }finally{ window._uploading=false; }
 }
 async function ghUploadOnce(opts){
   opts=opts||{};
+  const pat=ghPat();
   setSyncState('working');
   if(!opts.silent) toast('正在同步到云端…');
   try{
