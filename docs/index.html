@@ -7608,16 +7608,25 @@ async function fetchCardChunk(f,profile,parts,exp){
     const t=await cdnRace(ghOwner()+'/'+GH_REPO+'@main/'+f,8000);
     if(t){ const o=JSON.parse(t); if(cardChunkOK(o,profile,parts,exp)) return o; }
   }catch(e){}
-  try{
-    const r=await cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},12000);
+  /* CDN 拿不到或内容对不上 → raw 与 API 同时竞速，谁先返回可用数据就用谁。
+     国内 raw.githubusercontent 常被墙，串行等它会白等十几秒。 */
+  const rawP=(async()=>{
+    const r=await cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},10000);
     const o=JSON.parse(await r.text());
-    if(cardChunkOK(o,profile,parts,exp)) return o;
-  }catch(e){}
-  try{
+    if(!cardChunkOK(o,profile,parts,exp)) throw new Error('stale');
+    return o;
+  })().catch(()=>null);
+  const apiP=(async()=>{
     const j=await apiGetFile(f,20000);
-    if(j&&j.json) return j.json;
-  }catch(e){}
-  return null;
+    if(j&&j.json&&Array.isArray(j.json.words)) return j.json;
+    throw new Error('none');
+  })().catch(()=>null);
+  return await new Promise(function(resolve){
+    let left=2, done=false;
+    [rawP,apiP].forEach(function(p){
+      p.then(function(v){ if(!done&&v){ done=true; resolve(v); } if(--left===0&&!done) resolve(null); });
+    });
+  });
 }
 /* ---------- 多存档容器合并（ky_profiles / kys_profiles / kk_profiles） ----------
  * 语义：b 中 a 没有的存档补入；同名存档比较 rev（最后修改时间），新者整体覆盖；
@@ -7894,7 +7903,11 @@ async function ghUpload(opts){
       const profile=k.replace('kk_data_','');
       const chunks=chunkCard(profile,mergedCardRaw[k],exp);
       const files=[];
-      chunks.forEach((ch,i)=>{ const f='kk_card_'+profile+'_'+i+'.json'; files.push(f); newFiles[f]=JSON.stringify(ch); });
+      /* 文件名带上本次版本戳：每次上传都换新文件名，CDN 就不可能再返回上一次的旧内容
+         （只靠 exp 字段校验能挡住旧数据，但会让每次同步都退化到走 API 兜底、变慢）。
+         旧的同名系列会在下面的 keepSet 清理里自动删除。 */
+      const stamp=(exp||'').replace(/[^0-9]/g,'').slice(0,14)||String(Date.now());
+      chunks.forEach((ch,i)=>{ const f='kk_card_'+profile+'_'+stamp+'_'+i+'.json'; files.push(f); newFiles[f]=JSON.stringify(ch); });
       cardsMeta.push({profile:profile,parts:chunks.length,files:files});
     });
     /* 云端独有存档继续列入清单，其他设备仍能发现它们 */
