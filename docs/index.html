@@ -4674,6 +4674,24 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--teal,#0d9488);cur
 .pt-done .big{font-size:22px;font-weight:800;color:var(--brand);margin:10px 0}
 .pt-done .sub{color:var(--text2);font-size:14px;margin-bottom:16px}
 @media(max-width:560px){.pt-word .pw{font-size:36px}.pt-word{padding:24px 14px 12px}}
+.pass-pack .pp-bar{height:6px;background:var(--brand-soft);border-radius:99px;overflow:hidden;margin-top:10px}
+.pass-pack .pp-bar i{display:block;height:100%;background:var(--brand);border-radius:99px;transition:width .25s}
+.pt-word .pt-badge{display:inline-block;margin-left:8px;font-size:12px;font-weight:700;border-radius:99px;padding:2px 10px;vertical-align:middle}
+.pt-word .pt-badge.ok{background:#d9f5ec;color:#0b6e64}
+.pt-word .pt-badge.no{background:#fee2e2;color:#b91c1c}
+.pt-grade{display:flex;gap:10px;padding:12px 14px 0;flex-wrap:wrap}
+.pt-grade button{flex:1;min-height:52px;font-size:16px;font-weight:700;position:relative}
+.pt-grade button em{position:absolute;right:9px;top:6px;font-style:normal;font-size:11px;opacity:.55;font-weight:600}
+.pt-grade button.ok{border-color:#34d399;color:#0b6e64;background:#ecfdf5}
+.pt-grade button.ok.on{background:#0b6e64;color:#fff;border-color:#0b6e64}
+.pt-grade button.danger{border-color:#fca5a5;color:#b91c1c;background:#fef2f2}
+.pt-grade button.danger.on{background:#b91c1c;color:#fff;border-color:#b91c1c}
+.pt-keys{text-align:center;font-size:12px;color:var(--text3);padding:10px 14px 16px}
+.pt-doneops{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+.pt-done .sub b{color:var(--brand);font-size:17px}
+.pi-opt{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text2);margin:10px 0;cursor:pointer;line-height:1.5}
+.pi-opt input{margin-top:3px;flex:none}
+
 .worditem .ops button{min-height:32px;padding:0 12px;border-radius:8px}
 &lt;/style&gt;
 &lt;/head&gt;
@@ -5343,105 +5361,206 @@ function _oldMarkUnused(){
 }
 
 
-/* ================= 过关卡（钩子）系统 ================= */
+/* ================= 过关卡（钩子）系统 =================
+   钩子文本 → 解析 → 过关卡包 → 逐张「先回忆再核对」+ 评分，评分与过卡共用同一套记忆进度。
+   注意：过关卡自成一个词库（过关卡/&lt;日期&gt;），评分时**不把卡片移出卡包** ——
+   卡包本身就是钩子素材，移走了就没得复习了。 */
 const PASSPREFIX='过关卡/';
 function isPassLib(l){ return String(l).indexOf(PASSPREFIX)===0; }
 function passDateOf(l){ return String(l).slice(PASSPREFIX.length); }
-let passState={date:'',queue:[],idx:0,shuffle:false,open:{}};
+let passState={date:'',queue:[],idx:0,shuffle:false,open:{},results:{}};
 
 function passPacks(){
   const m={};
-  WORDS.forEach(function(w){ if(isPassLib(w.lib)) m[w.lib]=(m[w.lib]||0)+1; });
-  return Object.keys(m).map(function(l){return {lib:l,date:passDateOf(l),n:m[l]};}).sort(function(a,b){return a.date&lt;b.date?1:(a.date&gt;b.date?-1:0);});
+  WORDS.forEach(function(w){ if(isPassLib(w.lib)){ if(!m[w.lib])m[w.lib]={n:0,ok:0}; m[w.lib].n++; if(w.mastered)m[w.lib].ok++; } });
+  return Object.keys(m).map(function(l){return {lib:l,date:passDateOf(l),n:m[l].n,ok:m[l].ok};})
+    .sort(function(a,b){return a.date&lt;b.date?1:(a.date&gt;b.date?-1:0);});
+}
+function passActive(){
+  const t=document.querySelector('.tab[data-v=&quot;pass&quot;]');
+  return !!(t&amp;&amp;t.classList.contains('active'));
 }
 function renderPass(){
   const box=$('passBox');
   const packs=passPacks();
   let h='&lt;div class=&quot;pass-head&quot;&gt;&lt;h3&gt;过关卡 · 钩子复习&lt;/h3&gt;&lt;span class=&quot;sp&quot;&gt;&lt;/span&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;passExportAll()&quot;&gt;导出全部&lt;/button&gt;'
     +'&lt;button class=&quot;btn primary small&quot; onclick=&quot;openPassImport()&quot;&gt;导入钩子文本&lt;/button&gt;&lt;/div&gt;';
-  h+='&lt;div class=&quot;pass-hint&quot;&gt;把 AI 生成的钩子文本粘贴进来，自动按日期做成过关卡。复习时只看英文，点开对应板块才显示谐音、记忆句、释义等——先主动回忆，再核对答案，记得更牢。&lt;/div&gt;';
+  h+='&lt;div class=&quot;pass-hint&quot;&gt;把 AI 生成的钩子文本粘进来，自动按日期做成过关卡。复习时只看英文，点开对应板块才显示谐音、记忆句、释义等 —— 先主动回忆，再核对答案，记得更牢。底部「做熟了 / 不会」和过卡共用同一套记忆进度。&lt;/div&gt;';
   if(!packs.length){
     h+='&lt;div class=&quot;pt-empty&quot;&gt;还没有过关卡。点右上角「导入钩子文本」开始。&lt;/div&gt;';
   }else{
     h+=packs.map(function(p){
+      const pct=p.n?Math.round(p.ok/p.n*100):0;
       return '&lt;div class=&quot;pass-pack&quot; onclick=&quot;passStart(\''+escAttr(p.date)+'\')&quot;&gt;'
-        +'&lt;div class=&quot;pp-top&quot;&gt;&lt;span class=&quot;pp-date&quot;&gt;'+esc(p.date)+'&lt;/span&gt;&lt;span class=&quot;pp-n&quot;&gt;'+p.n+' 词&lt;/span&gt;'
+        +'&lt;div class=&quot;pp-top&quot;&gt;&lt;span class=&quot;pp-date&quot;&gt;'+esc(p.date)+'&lt;/span&gt;'
+        +'&lt;span class=&quot;pp-n&quot;&gt;'+p.n+' 词 · 已熟 '+p.ok+'&lt;/span&gt;'
         +'&lt;span class=&quot;pp-ops&quot;&gt;'
         +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passStart(\''+escAttr(p.date)+'\')&quot;&gt;开始过关&lt;/button&gt;'
+        +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passExport(\''+escAttr(p.date)+'\')&quot;&gt;导出&lt;/button&gt;'
         +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passRename(\''+escAttr(p.date)+'\')&quot;&gt;重命名&lt;/button&gt;'
         +'&lt;button class=&quot;btn small danger&quot; onclick=&quot;event.stopPropagation();passDelete(\''+escAttr(p.date)+'\')&quot;&gt;删除&lt;/button&gt;'
-        +'&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;';
+        +'&lt;/span&gt;&lt;/div&gt;'
+        +'&lt;div class=&quot;pp-bar&quot;&gt;&lt;i style=&quot;width:'+pct+'%&quot;&gt;&lt;/i&gt;&lt;/div&gt;&lt;/div&gt;';
     }).join('');
   }
   box.innerHTML=h;
 }
 
-/* 文本钩子解析器：识别“标签：内容”，按单词分组 */
+/* 规范化一行：容忍 AI 常见的 Markdown 装饰（加粗、项目符号、编号、【】包裹） */
+function normalizeHookLine(ln){
+  let t=String(ln).replace(/\r/g,'').trim();
+  t=t.replace(/^#{1,6}\s*/,'');
+  t=t.replace(/^[-*•·]\s+/,'');
+  t=t.replace(/^\d+\s*[.、)）]\s*/,'');
+  t=t.replace(/\*\*/g,'').replace(/__/g,'').replace(/`/g,'');
+  t=t.replace(/^[【\[]\s*([^】\]]{1,10})\s*[】\]]\s*[:：]?\s*/,'$1：');
+  return t.trim();
+}
+/* 文本钩子解析器：识别「标签：内容」，按单词分组。
+   返回 {items, unknown}：unknown 是「看着像标签但认不出来」的行，交给用户核对，
+   避免它们被静默并进上一个字段而污染数据。 */
 function parseHooks(text){
-  const lines=String(text).replace(/\r/g,'').split('\n');
   const tagMap={
-    '单词':'w','英文':'w','词':'w','word':'w',
-    '谐音':'hook',
-    '记忆句':'mem','记忆':'mem','助记句':'mem',
+    '单词':'w','英文':'w','词':'w','word':'w','词汇':'w','单词原形':'w',
+    '谐音':'hook','谐音法':'hook','联想':'hook','联想钩子':'hook','钩子':'hook','助记':'hook',
+    '记忆句':'mem','记忆':'mem','助记句':'mem','记忆法':'mem',
     '音标':'ipa','ipa':'ipa',
-    '释义':'trans','词性释义':'trans','词义':'trans','意思':'trans',
-    '例句':'ex','example':'ex',
-    '拓展':'ext','词根':'ext','派生':'ext',
-    '趣味句':'fun','趣味':'fun','趣味助记':'fun'
+    '释义':'trans','词性释义':'trans','词义':'trans','意思':'trans','翻译':'trans','中文':'trans',
+    '例句':'ex','example':'ex','英文例句':'ex',
+    '拓展':'ext','词根':'ext','派生':'ext','词根词缀':'ext','同根词':'ext','拓展词':'ext',
+    '趣味句':'fun','趣味':'fun','趣味助记':'fun','搞笑句':'fun'
   };
   function blank(){return {w:'',hook:'',mem:'',ipa:'',trans:'',ex:'',ext:'',fun:''};}
-  const out=[]; let cur=null, field=null;
+  const out=[]; const unknown=[]; let cur=null, field=null;
   function commit(){ if(cur&amp;&amp;cur.w) out.push(cur); }
-  lines.forEach(function(ln){
-    const m=ln.match(/^\s*([A-Za-z\u4e00-\u9fa5\/]{1,8})\s*[:：]\s?(.*)$/);
-    if(m){
-      const key=tagMap[m[1].trim().toLowerCase()];
-      if(!key){ if(cur&amp;&amp;field&amp;&amp;ln.trim()) cur[field]+=(cur[field]?'\n':'')+ln.trim(); return; }
+  String(text).replace(/\r/g,'').split('\n').forEach(function(raw){
+    const ln=normalizeHookLine(raw);
+    if(!ln) return;
+    const m=ln.match(/^([A-Za-z\u4e00-\u9fa5\/]{1,10})\s*[:：]\s*(.*)$/);
+    const key=m?(tagMap[m[1].trim().toLowerCase()]||null):null;
+    if(key){
       if(key==='w'){ commit(); cur=blank(); field='w'; }
       else { if(!cur) cur=blank(); field=key; }
       if(m[2].trim()) cur[field]=(cur[field]?cur[field]+'\n':'')+m[2].trim();
-    }else{
-      if(cur&amp;&amp;field&amp;&amp;ln.trim()) cur[field]+=(cur[field]?'\n':'')+ln.trim();
+      return;
     }
+    if(m&amp;&amp;cur){ unknown.push(m[1]); }
+    if(cur&amp;&amp;field){ cur[field]+=(cur[field]?'\n':'')+ln; }
+    else if(!cur) unknown.push(ln.slice(0,30));
   });
   commit();
-  return out;
+  return {items:out, unknown:unknown};
 }
-
+function passTextOf(w){
+  const L=['单词：'+w.w];
+  if(w.ipa)L.push('音标：'+w.ipa);
+  if(w.trans)L.push('释义：'+w.trans);
+  if(w.hook)L.push('谐音：'+w.hook);
+  if(w.sample)L.push('记忆句：'+w.sample);
+  if(w.ex)L.push('例句：'+w.ex);
+  if(w.ext)L.push('拓展：'+w.ext);
+  if(w.note)L.push('趣味句：'+w.note);
+  return L.join('\n');
+}
+function passCopyModal(title, txt, n){
+  openModal('&lt;h3&gt;'+title+'&lt;/h3&gt;&lt;p class=&quot;muted&quot;&gt;共 '+n+' 个词。可复制保存，或直接再粘回「导入钩子文本」。&lt;/p&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;textarea id=&quot;pxText&quot; style=&quot;min-height:250px&quot;&gt;'+esc(txt)+'&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; id=&quot;pxCopy&quot;&gt;复制全部&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;关闭&lt;/button&gt;&lt;/div&gt;');
+  $('pxCopy').addEventListener('click',function(){
+    const t=$('pxText');
+    try{
+      if(navigator.clipboard&amp;&amp;navigator.clipboard.writeText){
+        navigator.clipboard.writeText(t.value).then(function(){toast('已复制');},function(){t.select();document.execCommand('copy');toast('已复制');});
+      } else { t.select(); document.execCommand('copy'); toast('已复制'); }
+    }catch(e){ try{ t.select(); document.execCommand('copy'); toast('已复制'); }catch(e2){ toast('请手动复制'); } }
+  });
+}
+function passExport(date){
+  const ws=WORDS.filter(function(w){return w.lib===PASSPREFIX+date;});
+  if(!ws.length){ toast('这个卡包是空的'); return; }
+  passCopyModal('导出钩子 · '+date, ws.map(passTextOf).join('\n\n'), ws.length);
+}
+function passExportAll(){
+  const ws=WORDS.filter(function(w){return isPassLib(w.lib);});
+  if(!ws.length){ toast('还没有任何过关卡'); return; }
+  passCopyModal('导出全部钩子', ws.map(passTextOf).join('\n\n'), ws.length);
+}
+/* 回填：把钩子写进同名的普通词库词条（只填空缺字段，绝不覆盖已有内容） */
+function backfillHooks(items){
+  let n=0;
+  items.forEach(function(p){
+    const t=String(p.w||'').toLowerCase();
+    if(!t) return;
+    WORDS.forEach(function(w){
+      if(isPassLib(w.lib)) return;
+      if(String(w.w||'').toLowerCase()!==t) return;
+      let hit=false;
+      if(p.hook&amp;&amp;!w.hook){ w.hook=p.hook; hit=true; }
+      if(p.trans&amp;&amp;!w.trans){ w.trans=p.trans; hit=true; }
+      if(p.ex&amp;&amp;!w.ex){ w.ex=p.ex; hit=true; }
+      if(p.ext&amp;&amp;!w.ext){ w.ext=p.ext; hit=true; }
+      if(p.fun&amp;&amp;!w.note){ w.note=p.fun; hit=true; }
+      if(hit){ w.ts=todayStr(); n++; }
+    });
+  });
+  return n;
+}
 function openPassImport(){
   const html='&lt;h3&gt;导入钩子文本&lt;/h3&gt;'
     +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;卡包日期（年月日）&lt;/label&gt;&lt;input type=&quot;date&quot; id=&quot;piDate&quot; value=&quot;'+todayStr()+'&quot;&gt;&lt;/div&gt;'
-    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;粘贴 AI 生成的钩子文本&lt;/label&gt;&lt;textarea id=&quot;piText&quot; style=&quot;min-height:230px&quot; placeholder=&quot;把 AI 生成的整段钩子文本粘贴到这里…&quot;&gt;&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;粘贴 AI 生成的钩子文本&lt;/label&gt;&lt;textarea id=&quot;piText&quot; style=&quot;min-height:220px&quot; placeholder=&quot;把 AI 生成的整段钩子文本粘贴到这里…&quot;&gt;&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;label class=&quot;pi-opt&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;piBack&quot; checked&gt; 同时把钩子写进同名词库里的词条（&lt;b&gt;只填空缺，不覆盖已有内容&lt;/b&gt;）&lt;/label&gt;'
     +'&lt;div id=&quot;piPreview&quot;&gt;&lt;/div&gt;'
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn&quot; id=&quot;piParse&quot;&gt;解析预览&lt;/button&gt;&lt;button class=&quot;btn primary&quot; id=&quot;piOk&quot; disabled&gt;生成过关卡&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;';
   openModal(html);
-  let parsed=[];
+  let parsed={items:[],unknown:[]};
   $('piParse').addEventListener('click',function(){
     parsed=parseHooks($('piText').value);
     const pv=$('piPreview');
-    if(!parsed.length){pv.innerHTML='&lt;p style=&quot;color:var(--bad)&quot;&gt;没解析到单词，请检查格式（每个词要有“单词：xxx”）。&lt;/p&gt;';$('piOk').disabled=true;return;}
-    pv.innerHTML='&lt;p style=&quot;color:var(--ok);margin:8px 0&quot;&gt;解析到 '+parsed.length+' 个词：'+parsed.map(function(x){return x.w;}).join('、')+'&lt;/p&gt;';
+    if(!parsed.items.length){
+      pv.innerHTML='&lt;p style=&quot;color:var(--bad)&quot;&gt;没解析到单词，请检查格式（每个词要有「单词：xxx」）。&lt;/p&gt;';
+      $('piOk').disabled=true; return;
+    }
+    let t='&lt;p style=&quot;color:var(--ok);margin:8px 0&quot;&gt;解析到 &lt;b&gt;'+parsed.items.length+'&lt;/b&gt; 个词：'+parsed.items.map(function(x){return esc(x.w);}).join('、')+'&lt;/p&gt;';
+    const lack=parsed.items.filter(function(x){return !x.hook||!x.trans;});
+    if(lack.length) t+='&lt;p style=&quot;color:var(--bad);font-size:12px&quot;&gt;其中 &lt;b&gt;'+lack.length+'&lt;/b&gt; 个词缺「谐音」或「释义」：'+lack.slice(0,8).map(function(x){return esc(x.w);}).join('、')+(lack.length&gt;8?' …':'')+'&lt;/p&gt;';
+    if(parsed.unknown.length) t+='&lt;p style=&quot;color:var(--bad);font-size:12px&quot;&gt;有 &lt;b&gt;'+parsed.unknown.length+'&lt;/b&gt; 行标签没认出来（会被并进上一个字段，建议核对）：'+esc(parsed.unknown.slice(0,8).join(' / '))+'&lt;/p&gt;';
+    pv.innerHTML=t;
     $('piOk').disabled=false;
   });
   $('piOk').addEventListener('click',function(){
     const date=$('piDate').value||todayStr();
     const lib=PASSPREFIX+date;
-    let add=0;
-    parsed.forEach(function(p){
-      if(!WORDS.some(function(w){return isPassLib(w.lib)&amp;&amp;passDateOf(w.lib)===date&amp;&amp;w.w.toLowerCase()===p.w.toLowerCase();})){
+    let add=0, upd=0;
+    parsed.items.forEach(function(p){
+      const ex=WORDS.find(function(w){return isPassLib(w.lib)&amp;&amp;passDateOf(w.lib)===date&amp;&amp;String(w.w).toLowerCase()===String(p.w).toLowerCase();});
+      if(ex){
+        if(p.ipa&amp;&amp;!ex.ipa)ex.ipa=p.ipa;
+        if(p.trans&amp;&amp;!ex.trans)ex.trans=p.trans;
+        if(p.hook&amp;&amp;!ex.hook)ex.hook=p.hook;
+        if(p.mem&amp;&amp;!ex.sample)ex.sample=p.mem;
+        if(p.ex&amp;&amp;!ex.ex)ex.ex=p.ex;
+        if(p.ext&amp;&amp;!ex.ext)ex.ext=p.ext;
+        if(p.fun&amp;&amp;!ex.note)ex.note=p.fun;
+        upd++;
+      }else{
         WORDS.push({id:uid(),w:p.w,ipa:p.ipa,trans:p.trans,hook:p.hook,sample:p.mem,ex:p.ex,ext:p.ext,note:p.fun,lib:lib,mastered:false,stage:0,wrong:0,next:'',ts:''});
         add++;
       }
     });
-    save();renderPass();closeModal();toast('已生成 '+date+' 过关卡（'+add+' 词）');
+    let bf=0;
+    if($('piBack')&amp;&amp;$('piBack').checked) bf=backfillHooks(parsed.items);
+    save();renderPass();closeModal();
+    toast('已生成 '+date+' 过关卡：新增 '+add+' 词'+(upd?('、补全 '+upd+' 词'):'')+(bf?('，回填 '+bf+' 个词条'):''));
   });
 }
 
-/* 训练 */
+/* ---------- 训练 ---------- */
 function passStart(date){
   const lib=PASSPREFIX+date;
   const queue=WORDS.filter(function(w){return w.lib===lib;});
-  passState={date:date,queue:queue,idx:0,shuffle:false,open:{}};
+  passState={date:date,queue:queue,idx:0,shuffle:false,open:{},results:{}};
   renderPassTrain();
 }
 function passShuffleQueue(){
@@ -5462,27 +5581,81 @@ function passToggleSec(id){
   if(passState.open[id])delete passState.open[id];else passState.open[id]=1;
   renderPassTrain();
 }
+function passOpenAll(){
+  const w=passState.queue[passState.idx]; if(!w) return;
+  const keys=['hook','mem','ipa','trans','ex','ext','fun'];
+  const anyClosed=keys.some(function(k){ return !passState.open[w.id+'_'+k]; });
+  keys.forEach(function(k){ if(anyClosed) passState.open[w.id+'_'+k]=1; else delete passState.open[w.id+'_'+k]; });
+  renderPassTrain();
+}
 function passPrev(){
-  if(passState.idx&gt;0){passState.idx--;passState.open={};renderPassTrain();}else toast('已经是第一页');
+  if(passState.idx&gt;0){passState.idx--;passState.open={};renderPassTrain();}else toast('已经是第一张');
 }
 function passNext(){
   if(passState.idx&lt;passState.queue.length-1){passState.idx++;passState.open={};renderPassTrain();}
-  else {passState.idx=passState.queue.length;renderPassTrain();}
+  else {passState.idx=passState.queue.length;passState.open={};renderPassTrain();}
 }
 function passRestart(){
-  passState.idx=0;passState.open={};
+  passState.idx=0;passState.open={};passState.results={};
   if(passState.shuffle)passShuffleQueue();
   renderPassTrain();
 }
-function passBack(){passState={date:'',queue:[],idx:0,shuffle:false,open:{}};renderPass();}
+function passBack(){passState={date:'',queue:[],idx:0,shuffle:false,open:{},results:{}};renderPass();}
+/* 评分：与过卡共用 mastered/wrong/ts，但**不移出卡包** */
+function passGrade(ok){
+  const st=passState; const w=st.queue[st.idx]; if(!w) return;
+  if(ok){ w.mastered=true; w.wrong=0; }
+  else { w.mastered=false; w.stage=0; w.wrong=(w.wrong||0)+1; }
+  w.ts=todayStr(); w.next=todayStr();
+  st.results[w.id]=ok?'ok':'no';
+  try{ bumpHistory(ok?'review':'new'); }catch(e){}
+  save();
+  passNext();
+}
+function passReviewWrong(){
+  const wrong=passState.queue.filter(function(w){ return passState.results[w.id]==='no'; });
+  if(!wrong.length){ toast('这一轮没有「不会」的卡'); return; }
+  passState.queue=wrong; passState.idx=0; passState.open={}; passState.results={};
+  renderPassTrain();
+  toast('只重过不会的 '+wrong.length+' 张');
+}
+function passEdit(){
+  const w=passState.queue[passState.idx]; if(!w) return;
+  openModal('&lt;h3&gt;改钩子内容&lt;/h3&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;单词&lt;/label&gt;&lt;input id=&quot;peW&quot; value=&quot;'+escAttr(w.w)+'&quot;&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;音标&lt;/label&gt;&lt;input id=&quot;peI&quot; value=&quot;'+escAttr(w.ipa||'')+'&quot;&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;释义&lt;/label&gt;&lt;textarea id=&quot;peT&quot; style=&quot;min-height:66px&quot;&gt;'+esc(w.trans||'')+'&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;谐音&lt;/label&gt;&lt;input id=&quot;peH&quot; value=&quot;'+escAttr(w.hook||'')+'&quot;&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;记忆句&lt;/label&gt;&lt;input id=&quot;peM&quot; value=&quot;'+escAttr(w.sample||'')+'&quot;&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;例句&lt;/label&gt;&lt;textarea id=&quot;peE&quot; style=&quot;min-height:60px&quot;&gt;'+esc(w.ex||'')+'&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;拓展（词根/派生）&lt;/label&gt;&lt;textarea id=&quot;peX&quot; style=&quot;min-height:60px&quot;&gt;'+esc(w.ext||'')+'&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;趣味句&lt;/label&gt;&lt;textarea id=&quot;peF&quot; style=&quot;min-height:60px&quot;&gt;'+esc(w.note||'')+'&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; id=&quot;peOK&quot;&gt;保存&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;');
+  $('peOK').addEventListener('click',function(){
+    const nw=$('peW').value.trim(); if(nw) w.w=nw;
+    w.ipa=$('peI').value.trim(); w.trans=$('peT').value.trim();
+    w.hook=$('peH').value.trim(); w.sample=$('peM').value.trim();
+    w.ex=$('peE').value.trim(); w.ext=$('peX').value.trim(); w.note=$('peF').value.trim();
+    w.ts=todayStr();
+    save();closeModal();renderPassTrain();toast('已保存');
+  });
+}
 function renderPassTrain(){
   const box=$('passBox');
   const st=passState;
   const queue=st.queue;
   if(!queue.length){box.innerHTML='&lt;div class=&quot;pt-empty&quot;&gt;这个卡包是空的&lt;/div&gt;';return;}
   if(st.idx&gt;=queue.length){
-    box.innerHTML='&lt;div class=&quot;pass-train&quot;&gt;&lt;div class=&quot;pt-done&quot;&gt;&lt;div class=&quot;big&quot;&gt;过关完成！&lt;/div&gt;&lt;div class=&quot;sub&quot;&gt;'+doneCheer()+'&lt;/div&gt;'
-      +'&lt;button class=&quot;btn primary&quot; onclick=&quot;passRestart()&quot;&gt;再过一遍&lt;/button&gt; &lt;button class=&quot;btn&quot; onclick=&quot;passBack()&quot;&gt;返回卡包&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
+    const ids=Object.keys(st.results);
+    const ok=ids.filter(function(k){return st.results[k]==='ok';}).length;
+    const no=ids.filter(function(k){return st.results[k]==='no';}).length;
+    box.innerHTML='&lt;div class=&quot;pass-train&quot;&gt;&lt;div class=&quot;pt-done&quot;&gt;&lt;div class=&quot;big&quot;&gt;过关完成！&lt;/div&gt;'
+      +'&lt;div class=&quot;sub&quot;&gt;本轮 '+ids.length+' 张　做熟了 &lt;b&gt;'+ok+'&lt;/b&gt;　不会 &lt;b&gt;'+no+'&lt;/b&gt;&lt;br&gt;'+doneCheer()+'&lt;/div&gt;'
+      +'&lt;div class=&quot;pt-doneops&quot;&gt;'
+      +(no?('&lt;button class=&quot;btn primary&quot; onclick=&quot;passReviewWrong()&quot;&gt;只重过不会的（'+no+'）&lt;/button&gt;'):'')
+      +'&lt;button class=&quot;btn&quot; onclick=&quot;passRestart()&quot;&gt;全部重过&lt;/button&gt;'
+      +'&lt;button class=&quot;btn&quot; onclick=&quot;passBack()&quot;&gt;返回卡包&lt;/button&gt;'
+      +'&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;';
     return;
   }
   const w=queue[st.idx];
@@ -5496,15 +5669,19 @@ function renderPassTrain(){
     {key:'fun',tag:'趣味句',body:w.note}
   ];
   const openKey=w.id;
+  const graded=st.results[w.id];
   let h='&lt;div class=&quot;pass-train&quot;&gt;';
   h+='&lt;div class=&quot;pt-bar&quot;&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;passBack()&quot;&gt;← 返回&lt;/button&gt;'
     +'&lt;span class=&quot;pt-prog&quot;&gt;&lt;i style=&quot;width:'+(st.idx/queue.length*100)+'%&quot;&gt;&lt;/i&gt;&lt;/span&gt;'
     +'&lt;span class=&quot;pt-x&quot;&gt;'+(st.idx+1)+' / '+queue.length+'&lt;/span&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;passOpenAll()&quot;&gt;展开全部&lt;/button&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;passToggleShuffle()&quot;&gt;'+(st.shuffle?'乱序 ✓':'正序')+'&lt;/button&gt;'
     +'&lt;/div&gt;';
   h+='&lt;div class=&quot;pt-word&quot;&gt;&lt;div class=&quot;pw&quot;&gt;'+esc(w.w)+'&lt;/div&gt;'
-    +'&lt;button class=&quot;spk&quot; onclick=&quot;speakWord(\''+escAttr(w.w)+'\')&quot;&gt;朗读单词&lt;/button&gt;&lt;/div&gt;';
+    +'&lt;button class=&quot;spk&quot; onclick=&quot;speakWord(\''+escAttr(w.w)+'\')&quot;&gt;朗读单词&lt;/button&gt;'
+    +(w.mastered?'&lt;span class=&quot;pt-badge ok&quot;&gt;已熟&lt;/span&gt;':(w.wrong?('&lt;span class=&quot;pt-badge no&quot;&gt;错 '+w.wrong+' 次&lt;/span&gt;'):''))
+    +'&lt;/div&gt;';
   h+='&lt;div class=&quot;pt-secs&quot;&gt;'+secs.map(function(s){
     if(!s.body)return '';
     const id=openKey+'_'+s.key;
@@ -5513,13 +5690,19 @@ function renderPassTrain(){
       +'&lt;span class=&quot;ps-tag&quot;&gt;'+s.tag+'&lt;/span&gt;&lt;span class=&quot;ps-ico&quot;&gt;▼&lt;/span&gt;&lt;/div&gt;'
       +'&lt;div class=&quot;ps-body&quot;&gt;'+esc(s.body)+'&lt;/div&gt;&lt;/div&gt;';
   }).join('')+'&lt;/div&gt;';
-  h+='&lt;div class=&quot;pt-nav&quot;&gt;&lt;button class=&quot;btn&quot; onclick=&quot;passPrev()&quot;&gt;← 上一页&lt;/button&gt;'
-    +'&lt;button class=&quot;btn primary&quot; onclick=&quot;passNext()&quot;&gt;下一页 →&lt;/button&gt;&lt;/div&gt;';
+  h+='&lt;div class=&quot;pt-grade&quot;&gt;'
+    +'&lt;button class=&quot;btn ok'+(graded==='ok'?' on':'')+'&quot; onclick=&quot;passGrade(true)&quot;&gt;做熟了&lt;em&gt;1&lt;/em&gt;&lt;/button&gt;'
+    +'&lt;button class=&quot;btn danger'+(graded==='no'?' on':'')+'&quot; onclick=&quot;passGrade(false)&quot;&gt;不会&lt;em&gt;2&lt;/em&gt;&lt;/button&gt;'
+    +'&lt;button class=&quot;btn small&quot; style=&quot;flex:0 0 auto&quot; onclick=&quot;passEdit()&quot;&gt;改内容&lt;/button&gt;'
+    +'&lt;/div&gt;';
+  h+='&lt;div class=&quot;pt-nav&quot;&gt;&lt;button class=&quot;btn&quot; onclick=&quot;passPrev()&quot;&gt;← 上一张&lt;/button&gt;'
+    +'&lt;button class=&quot;btn primary&quot; onclick=&quot;passNext()&quot;&gt;下一张 →&lt;/button&gt;&lt;/div&gt;';
+  h+='&lt;div class=&quot;pt-keys&quot;&gt;快捷键：← → 翻页 ｜ 1 做熟了 ｜ 2 不会 ｜ 空格 展开全部 ｜ Esc 返回&lt;/div&gt;';
   h+='&lt;/div&gt;';
   box.innerHTML=h;
 }
 
-/* 重命名 / 删除 */
+/* ---------- 重命名 / 删除 ---------- */
 function passRename(date){
   const html='&lt;h3&gt;重命名卡包日期&lt;/h3&gt;&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;新日期（年月日）&lt;/label&gt;&lt;input type=&quot;date&quot; id=&quot;prDate&quot; value=&quot;'+date+'&quot;&gt;&lt;/div&gt;'
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; id=&quot;prOk&quot;&gt;保存&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;';
@@ -5527,19 +5710,44 @@ function passRename(date){
   $('prOk').addEventListener('click',function(){
     const nd=$('prDate').value;
     if(!nd){toast('请选择日期');return;}
+    if(nd===date){closeModal();return;}
     WORDS.forEach(function(w){if(w.lib===PASSPREFIX+date)w.lib=PASSPREFIX+nd;});
     save();renderPass();closeModal();toast('已重命名为 '+nd);
   });
 }
 function passDelete(date){
-  const html='&lt;h3&gt;删除过关卡&lt;/h3&gt;&lt;p class=&quot;muted&quot;&gt;确定删除「'+date+'」的全部过关卡吗？此操作不可恢复。&lt;/p&gt;'
+  const lib=PASSPREFIX+date;
+  const gone=WORDS.filter(function(w){return w.lib===lib;}).slice();
+  if(!gone.length){ toast('这个卡包是空的'); return; }
+  const html='&lt;h3&gt;删除过关卡&lt;/h3&gt;&lt;p class=&quot;muted&quot;&gt;确定删除「'+date+'」的全部 '+gone.length+' 张过关卡吗？删除后 &lt;b&gt;8 秒内可以撤销&lt;/b&gt;。&lt;/p&gt;'
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn danger&quot; id=&quot;pdOk&quot;&gt;删除&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;';
   openModal(html);
   $('pdOk').addEventListener('click',function(){
-    WORDS=WORDS.filter(function(w){return w.lib!==PASSPREFIX+date;});
-    save();renderPass();closeModal();toast('已删除');
+    /* 必须写墓碑：否则下次云同步会把它们合并回来（老代码就是漏了这一步） */
+    addGraves(gone.map(function(w){return w.id;}));
+    WORDS=WORDS.filter(function(w){return w.lib!==lib;});
+    save().then(function(){
+      renderPass();closeModal();
+      undoBar('已删除「'+date+'」'+gone.length+' 张过关卡',gone,function(){renderPass();});
+    });
   });
 }
+
+/* ---------- 快捷键 ---------- */
+document.addEventListener('keydown',function(ev){
+  try{
+    const t=ev.target;
+    if(t&amp;&amp;(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+    if(!passActive())return;
+    if(!passState.queue||!passState.queue.length)return;
+    if(ev.key==='ArrowRight'){ev.preventDefault();passNext();}
+    else if(ev.key==='ArrowLeft'){ev.preventDefault();passPrev();}
+    else if(ev.key==='1'){ev.preventDefault();passGrade(true);}
+    else if(ev.key==='2'){ev.preventDefault();passGrade(false);}
+    else if(ev.key===' '||ev.code==='Space'){ev.preventDefault();passOpenAll();}
+    else if(ev.key==='Escape'){ev.preventDefault();passBack();}
+  }catch(e){}
+});
 
 function quizStart(lib){
   quizLibSel=lib||'__all__';quizMode='new';fillQuizSelects();
