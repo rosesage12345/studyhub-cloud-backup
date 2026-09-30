@@ -7587,38 +7587,57 @@ function normHistory(h){
   return [];
 }
 
-/* 校验云端分块是否与清单声明一致。
-   jsDelivr 等 CDN 会在文件被覆盖后继续返回**旧缓存**，若直接采信，
-   就会把过期版本的词库混进合并结果（表现为词数对不上、数据反复横跳）。
-   校验不通过时必须改走 GitHub API（无缓存）。 */
-function cardChunkOK(o,profile,parts,exp){
+/* ---------- 内容寻址：分块文件名 = 内容哈希 ----------
+   同一份内容永远得到同一个文件名，于是：
+     · 上传：内容没变的分块文件名也没变，不必重新上传（一次同步往往只传 1~2 块）
+     · 下载：文件名不变 → 浏览器/CDN 缓存直接命中，零流量
+     · 校脸：读取时重算哈希，对不上就拒收 —— CDN 就算返回旧缓存也进不来。
+   用两个不同种子的 32 位 FNV（imul 实现，够快）拼成 64 位，冲突概率可忽略。 */
+function hash64(s){
+  let a=0x811c9dc5|0, b=0x1b873593|0;
+  for(let i=0;i<s.length;i++){
+    const c=s.charCodeAt(i);
+    a^=c; a=Math.imul(a,16777619);
+    b^=c; b=Math.imul(b,2246822519);
+  }
+  return (a>>>0).toString(16).padStart(8,'0')+(b>>>0).toString(16).padStart(8,'0');
+}
+function cardFileName(profile,part,chunk){
+  return 'kk_card_'+profile+'_'+part+'_'+hash64(JSON.stringify(chunk))+'.json';
+}
+/* 从文件名里取回哈希（用于读取时校验）；不是内容寻址名则返回 null */
+function cardNameHash(name){
+  const m=/^kk_card_(.+)_(\d+)_([0-9a-f]{16})\.json$/.exec(String(name||''));
+  return m?m[3]:null;
+}
+/* 校验云端分块：结构 + 存档名 + 块数 + （内容寻址时）内容哈希 */
+function cardChunkOK(o,profile,parts,name){
   if(!o||!Array.isArray(o.words))return false;
   if(profile&&o.profile&&o.profile!==profile)return false;
   if(typeof o.total==='number'&&typeof parts==='number'&&parts>0&&o.total!==parts)return false;
   if(typeof o.part==='number'&&typeof o.total==='number'&&(o.part<0||o.part>=o.total))return false;
-  /* 内容版本必须与清单一致。CDN 缓存了「被覆盖之前的旧版本」时，这里会拦下来并改走 raw/API。
-     旧版分块没有 exp 字段 → o.exp 为 undefined → 同样被拒绝，于是历史缓存会被自动绕开。 */
-  if(exp!==undefined&&exp!==null&&exp!==''&&o.exp!==exp)return false;
+  const want=cardNameHash(name);
+  if(want) return hash64(JSON.stringify(o))===want;
   return true;
 }
 /* 统一取云端分块：CDN 竞速（快）→ 校验 → raw.githubusercontent（近乎实时）→ GitHub API（最准）。
    三级兜底是为了让"CDN 缓存了旧版本"这种情况能自动绕过去。 */
-async function fetchCardChunk(f,profile,parts,exp){
+async function fetchCardChunk(f,profile,parts){
   try{
     const t=await cdnRace(ghOwner()+'/'+GH_REPO+'@main/'+f,8000);
-    if(t){ const o=JSON.parse(t); if(cardChunkOK(o,profile,parts,exp)) return o; }
+    if(t){ const o=JSON.parse(t); if(cardChunkOK(o,profile,parts,f)) return o; }
   }catch(e){}
   /* CDN 拿不到或内容对不上 → raw 与 API 同时竞速，谁先返回可用数据就用谁。
      国内 raw.githubusercontent 常被墙，串行等它会白等十几秒。 */
   const rawP=(async()=>{
     const r=await cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},10000);
     const o=JSON.parse(await r.text());
-    if(!cardChunkOK(o,profile,parts,exp)) throw new Error('stale');
+    if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
     return o;
   })().catch(()=>null);
   const apiP=(async()=>{
     const j=await apiGetFile(f,20000);
-    if(j&&j.json&&Array.isArray(j.json.words)) return j.json;
+    if(j&&j.json&&Array.isArray(j.json.words)&&cardChunkOK(j.json,profile,parts,f)) return j.json;
     throw new Error('none');
   })().catch(()=>null);
   return await new Promise(function(resolve){
@@ -7709,9 +7728,10 @@ function collectLocalKeys(){
   return out;
 }
 
-/* ---------- 词卡切块（每块 JSON ≤ 约 230KB，base64 后请求体安全） ---------- */
+/* ---------- 词卡切块（每块 JSON ≤ 约 230KB，base64 后请求体安全） ----------
+   分块内容里不放时间戳：内容不变 → 哈希不变 → 文件名不变 → 不必重传、缓存可长期命中。 */
 const CHUNK_TARGET=230000;
-function chunkCard(profileId,raw,exp){
+function chunkCard(profileId,raw){
   let d={};
   try{ d=JSON.parse(raw||'{}'); }catch(e){ d={}; }
   const words=d.words||[];
@@ -7721,7 +7741,7 @@ function chunkCard(profileId,raw,exp){
   words.forEach(w=>{ cur.push(w); if(JSON.stringify(cur).length>=CHUNK_TARGET) flush(); });
   if(cur.length) flush();
   if(!chunks.length) chunks.push([]);
-  return chunks.map((ws,i)=>({v:3,profile:profileId,exp:exp||'',part:i,total:chunks.length,words:ws,history:i===chunks.length-1?normHistory(d.history):undefined,graves:i===chunks.length-1?(d.graves||[]):undefined}));
+  return chunks.map((ws,i)=>({v:3,profile:profileId,part:i,total:chunks.length,words:ws,history:i===chunks.length-1?normHistory(d.history):undefined,graves:i===chunks.length-1?(d.graves||[]):undefined}));
 }
 
 /* ---------- 高级：保存自定义云端账号（覆盖内置） ---------- */
@@ -7759,13 +7779,39 @@ function clearGh(){
 }
 function resetGh(){ clearGh(); }
 
-/* ---------- 一键上传（Git Data API：所有文件一个原子提交，不 409、可重试） ---------- */
+/* ---------- 一键上传 ----------
+   外壳负责「冲突自动重试」：若另一台设备在本次提交过程中推送过，PATCH ref 会失败。
+   此时必须**从重新读取云端状态开始整个重做**（而不是拿同一个 sha 硬重试），
+   否则就会把对方的改动覆盖掉。 */
 async function ghUpload(opts){
   opts=opts||{};
-  const pat=ghPat();
-  if(!pat){ toast('未配置云端账号'); return; }
+  if(!ghPat()){ toast('未配置云端账号'); return; }
   if(window._uploading){ return; }
-  window._uploading=true; setSyncState('working');
+  window._uploading=true;
+  try{
+    let lastErr=null;
+    for(let i=0;i<3;i++){
+      try{ const r=await ghUploadOnce(opts); setSyncState('ok'); return r; }
+      catch(e){
+        lastErr=e;
+        const conflict=/fast forward|409|422|conflict|concurrent/i.test(String((e&&e.message)||''));
+        if(i<2&&conflict){
+          if(!opts.silent) toast('有其他设备刚同步过，正在合并后重试…');
+          await new Promise(r=>setTimeout(r,1200+i*1800));
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr;
+  }catch(e){
+    setSyncState('err');
+    if(!opts.silent) toast('同步失败：'+e.message);
+  }finally{ window._uploading=false; }
+}
+async function ghUploadOnce(opts){
+  opts=opts||{};
+  setSyncState('working');
   if(!opts.silent) toast('正在同步到云端…');
   try{
     const owner=ghOwner();
@@ -7832,16 +7878,47 @@ async function ghUpload(opts){
     const cbJ=await getBackupR();
     let cb=cbJ?cbJ.json:{};
     const cbKeys=cb.keys||{};
-    Object.keys(cbKeys).forEach(k=>{
-      if(localKeys[k]===undefined){ localKeys[k]=cbKeys[k]; }
-      else if(k==='ky_profiles'||k==='kys_profiles'||k==='kk_profiles'){ localKeys[k]=mergeProfiles(localKeys[k],cbKeys[k],k); }
+    const exp=new Date().toISOString();
+    /* ---------- 跨设备按版本合并 ----------
+       原先只有 ky/kys/kk_profiles 三个容器做了版本合并，其余键一律"本机有就用本机"，
+       于是**老设备一同步就会把新设备的学习进度覆盖掉**（艾宾浩斯/待办/番茄钟尤其危险）。
+       现在每个键都带 rev + 内容哈希：先判断"自上次同步以来谁改过"，只有都改过才比时间。 */
+    const cbMeta=cb.meta||{};
+    let sMeta={}, sDirty={};
+    try{ sMeta=JSON.parse(localStorage.getItem('_syncMeta')||'{}'); }catch(e){}
+    try{ sDirty=JSON.parse(localStorage.getItem('_syncDirty')||'{}'); }catch(e){}
+    const newMeta={};
+    const _hash=v=>hash64(String(v===undefined?'':v));
+    const _now=()=>new Date().toISOString();
+    const _allKeys={};
+    Object.keys(localKeys).forEach(k=>{ _allKeys[k]=1; });
+    Object.keys(cbKeys).forEach(k=>{ _allKeys[k]=1; });
+    Object.keys(_allKeys).forEach(k=>{
+      const lv=localKeys[k], cv=cbKeys[k];
+      const cm0=cbMeta[k]||{};
+      if(lv===undefined){ localKeys[k]=cv; newMeta[k]={rev:cm0.rev||exp,h:_hash(cv)}; return; }
+      if(cv===undefined){ newMeta[k]={rev:_now(),h:_hash(lv)}; return; }
+      if(k==='ky_profiles'||k==='kys_profiles'||k==='kk_profiles'){
+        const m=mergeProfiles(lv,cv,k); localKeys[k]=m; newMeta[k]={rev:_now(),h:_hash(m)}; return;
+      }
+      const base=(sMeta[k]&&sMeta[k].h)||null;
+      const lh=_hash(lv), ch=_hash(cv);
+      const lChanged=(base===null)||(lh!==base);
+      const cChanged=(base===null)||(ch!==base);
+      if(cChanged&&!lChanged){ localKeys[k]=cv; newMeta[k]={rev:cm0.rev||exp,h:ch}; return; }
+      if(!cChanged){ newMeta[k]={rev:lChanged?_now():(cm0.rev||exp),h:lh}; return; }
+      /* 两边都改过 → 比时间：本地改动时刻 vs 云端 rev */
+      const lts=sDirty[k]||0;
+      const cts=Date.parse(cm0.rev||'')||0;
+      if(cts>lts){ localKeys[k]=cv; newMeta[k]={rev:cm0.rev||exp,h:ch}; }
+      else{ newMeta[k]={rev:_now(),h:lh}; }
     });
     /* 云端卡块：统一走 fetchCardChunk（带缓存校验与多级兜底） */
     const cloudCards={};
     const fileJobs=[];
     for(const cc of ((cm&&cm.cards)||[])){ for(const f of (cc.files||[])) fileJobs.push({profile:cc.profile,parts:cc.parts,f}); }
     const gotPieces=await mapLimit(fileJobs,4,async jb=>{
-      const o=await fetchCardChunk(jb.f,jb.profile,jb.parts,cm&&cm.exported);
+      const o=await fetchCardChunk(jb.f,jb.profile,jb.parts);
       if(o) return {profile:jb.profile, piece:JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]})};
       return null;
     });
@@ -7894,90 +7971,96 @@ async function ghUpload(opts){
         throw new Error('词库将从 '+cloudWordCount[k]+' 个减少到 '+mw.length+' 个（无删除记录），已中止上传以防丢数据。确需批量删除请先逐条删除再同步');
       }
     }
-    /* 生成待提交内容 */
-    const exp=new Date().toISOString();
+    /* ---------- 生成待提交内容（内容寻址：内容没变的文件不重传） ---------- */
     const newFiles={};
     newFiles['backup.json']=JSON.stringify({exported:exp,keys:localKeys});
     const cardsMeta=[];
     Object.keys(mergedCardRaw).forEach(k=>{
       const profile=k.replace('kk_data_','');
-      const chunks=chunkCard(profile,mergedCardRaw[k],exp);
+      const chunks=chunkCard(profile,mergedCardRaw[k]);
       const files=[];
-      /* 文件名带上本次版本戳：每次上传都换新文件名，CDN 就不可能再返回上一次的旧内容
-         （只靠 exp 字段校验能挡住旧数据，但会让每次同步都退化到走 API 兜底、变慢）。
-         旧的同名系列会在下面的 keepSet 清理里自动删除。 */
-      const stamp=(exp||'').replace(/[^0-9]/g,'').slice(0,14)||String(Date.now());
-      chunks.forEach((ch,i)=>{ const f='kk_card_'+profile+'_'+stamp+'_'+i+'.json'; files.push(f); newFiles[f]=JSON.stringify(ch); });
+      chunks.forEach((ch,i)=>{ const f=cardFileName(profile,i,ch); files.push(f); newFiles[f]=JSON.stringify(ch); });
       cardsMeta.push({profile:profile,parts:chunks.length,files:files});
     });
     /* 云端独有存档继续列入清单，其他设备仍能发现它们 */
     preservedCards.forEach(c=>{ cardsMeta.push({profile:c.profile,parts:c.parts,files:(c.files||[]).slice()}); });
-    newFiles['manifest.json']=JSON.stringify({version:5,exported:exp,backup:'backup.json',cards:cardsMeta});
+    newFiles['manifest.json']=JSON.stringify({version:6,exported:exp,backup:'backup.json',meta:newMeta,cards:cardsMeta});
+
     /* ===== Git Data API 单次原子提交 ===== */
     window._ghStage='ref';
-    /* 1. 当前分支指向的 commit */
     const ref=await withRetry(()=>apiCall('GET','git/ref/heads/main'),3);
     const parentSha=ref.object.sha;
-    /* 2. 父 commit 的 base tree */
     window._ghStage='commit';
     const parentCommit=await withRetry(()=>apiCall('GET','git/commits/'+parentSha),3);
     const baseTree=parentCommit.tree.sha;
-    /* 3. 为每个文件创建 blob（独立请求、不推进分支，可并发、可重试） */
-    window._ghStage='blobs';
+    /* 先取 base tree：既用于判断哪些文件仓库里已经有了，也用于清理旧分块。 */
+    const fullTree=await withRetry(()=>apiCall('GET','git/trees/'+baseTree+'?recursive=1'),3);
+    const inRepo={};
+    (fullTree.tree||[]).forEach(x=>{ if(x.type==='blob') inRepo[x.path]=x.sha; });
+
+    /* 只上传仓库里没有的文件 —— 这是「快」的关键：
+       分块是内容寻址的，同名必然同内容；改一个词通常只产生 1 个新分块，其余 14 个直接复用。 */
     const paths=Object.keys(newFiles);
     const blobSha={};
-    await mapLimit(paths,3,async p=>{
+    const toUpload=paths.filter(p=>(p==='backup.json'||p==='manifest.json')?true:!inRepo[p]);
+    window._ghStage='blobs';
+    await mapLimit(toUpload,3,async p=>{
       const b64=strToB64(newFiles[p]);
       const blob=await withRetry(()=>apiCall('POST','git/blobs',{content:b64,encoding:'base64'},35000),4);
       blobSha[p]=blob.sha;
     });
-    /* 4. 列出 base tree：保留云端独有存档、清掉多余分块、并把上一版归档进 history/ */
-    const fullTree=await withRetry(()=>apiCall('GET','git/trees/'+baseTree+'?recursive=1'),3);
-    const keepSet={}; paths.forEach(p=>keepSet[p]=1);
+    window._ghStage='tree';
+    const keepSet={}; paths.forEach(p=>{ keepSet[p]=1; });
     preservedCards.forEach(c=>(c.files||[]).forEach(f=>{ keepSet[f]=1; }));
-    /* history/ 只保留最近 5 版，避免仓库无限膨胀 */
-    const HIST_KEEP=5;
-    const histStamps={};
-    (fullTree.tree||[]).forEach(x=>{
-      const p=x.path||'';
-      if(p.indexOf('history/')===0){ const s=p.split('/')[1]; if(s) histStamps[s]=1; }
-    });
-    const oldStamps=Object.keys(histStamps).sort();
-    while(oldStamps.length>=HIST_KEEP){ histStamps[oldStamps.shift()]=null; }
-    const stamp=new Date().toISOString().replace(/[:.]/g,'-');
     const treeItems=[];
-    paths.forEach(p=>treeItems.push({path:p,mode:'100644',type:'blob',sha:blobSha[p]}));
+    paths.forEach(p=>{ if(blobSha[p]) treeItems.push({path:p,mode:'100644',type:'blob',sha:blobSha[p]}); });
     (fullTree.tree||[]).forEach(x=>{
       if(x.type!=='blob') return;
       const p=x.path||'';
-      if(p.indexOf('kk_card_')===0){
-        if(!keepSet[p]) treeItems.push({path:p,mode:'100644',type:'blob',sha:null});
-        /* 归档上一版：直接指向已有 blob，不产生额外上传流量 */
-        treeItems.push({path:'history/'+stamp+'/'+p,mode:'100644',type:'blob',sha:x.sha});
-      }else if(p.indexOf('history/')===0&&histStamps[p.split('/')[1]]===null){
-        treeItems.push({path:p,mode:'100644',type:'blob',sha:null});
-      }
+      /* 清掉上一代分块（内容寻址后旧名字不会再被引用）；
+         history/ 是早期版本的冗余归档 —— git 提交历史本身就是备份，一并清掉以免仓库无限膨胀。 */
+      if(p.indexOf('kk_card_')===0){ if(!keepSet[p]) treeItems.push({path:p,mode:'100644',type:'blob',sha:null}); }
+      else if(p.indexOf('history/')===0){ treeItems.push({path:p,mode:'100644',type:'blob',sha:null}); }
     });
-    window._ghStage='tree';
     const newTree=await withRetry(()=>apiCall('POST','git/trees',{base_tree:baseTree,tree:treeItems}),3);
-    /* 5. 创建 commit（单一父提交，不会 409） */
     window._ghStage='commitpost';
     const newCommit=await withRetry(()=>apiCall('POST','git/commits',{
       message:'学习台同步 '+new Date().toLocaleString('zh-CN'),tree:newTree.sha,parents:[parentSha]}),3);
-    /* 6. 快进分支 */
     window._ghStage='patch';
     await withRetry(()=>apiCall('PATCH','git/refs/heads/main',{sha:newCommit.sha,force:false}),3);
     window._ghStage='done';
+    /* 记录本次同步基准：下次据此判断「自上次同步以来谁改过」 */
+    localStorage.setItem('_syncMeta',JSON.stringify(newMeta));
+    if(window._clearSyncDirty) window._clearSyncDirty();
     localStorage.setItem('lastCloudCheck',exp);
     localStorage.setItem('ghLastUpload',new Date().toLocaleString('zh-CN'));
-    setSyncState('ok');
     if(!opts.silent) toast('已同步到云端，其他设备打开会自动提示更新');
+    return {uploaded:toUpload.length,total:paths.length,unchanged:paths.length-toUpload.length};
   }catch(e){
-    setSyncState('err');
-    if(!opts.silent) toast('同步失败：'+e.message);
-  }finally{ window._uploading=false; }
+    throw e;   /* 交给外层统一处理（含冲突自动重试） */
+  }
 }
 
+/* ---------- 本地改动时间追踪（供跨设备合并判断「谁改得更新」） ----------
+   包一层 localStorage.setItem 记录每个键的最后修改时刻；内存里维护、定期落盘，
+   避免每次写入都做一次 JSON 解析。同步成功后由 _clearSyncDirty 清空。 */
+(function(){
+  try{
+    const orig=localStorage.setItem.bind(localStorage);
+    let dirty={};
+    try{ dirty=JSON.parse(orig('_syncDirty')||'{}')||{}; }catch(e){ dirty={}; }
+    const SKIP={_syncDirty:1,_syncMeta:1,ghPat:1,ghOwner:1,lastCloudCheck:1,ghLastUpload:1,_cloudBuf:1};
+    localStorage.setItem=function(k,v){
+      orig(k,v);
+      if(!SKIP[k]) dirty[k]=Date.now();
+    };
+    const flush=()=>{ try{ orig('_syncDirty',JSON.stringify(dirty)); }catch(e){} };
+    window._flushSyncDirty=flush;
+    window._clearSyncDirty=function(){ dirty={}; flush(); };
+    setInterval(flush,5000);
+    window.addEventListener('pagehide',flush);
+  }catch(e){}
+})();
 /* ---------- 打开页面自动检查云端 ---------- */
 function cloudDo(){
   const pat=ghPat();
@@ -8106,7 +8189,7 @@ async function cloudRestore(){
     for(const c of (m.cards||[])){
       const pieces=(await mapLimit(c.files,4,async function(f){
         try{
-          const o=await fetchCardChunk(f,c.profile,c.parts,m&&m.exported);
+          const o=await fetchCardChunk(f,c.profile,c.parts);
           if(!o) return null;
           return JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]});
         }catch(e){return null;}
@@ -8114,7 +8197,7 @@ async function cloudRestore(){
       let raw=null;pieces.forEach(function(p){raw=raw?mergeCardRaw(raw,p):p;});
       if(raw)cards[c.profile]=raw;
     }
-    buf.keys=keys;buf.cards=cards;buf.manifest=m;buf.src='api';
+    buf.keys=keys;buf.cards=cards;buf.manifest=m;buf.meta=m.meta||{};buf.src='api';
     restoreProgressHide();
     await applyCloudData(buf);
   }catch(e){ restoreProgressHide(); toast('恢复失败：'+e.message); }
@@ -8122,14 +8205,30 @@ async function cloudRestore(){
 /* 应用下载好的云端数据到本机 */
 async function applyCloudData(o){
   const ks=o.keys||{};
-  let n=0;
+  const meta=o.meta||{};
+  let sMeta={}, sDirty={};
+  try{ sMeta=JSON.parse(localStorage.getItem('_syncMeta')||'{}'); }catch(e){}
+  try{ sDirty=JSON.parse(localStorage.getItem('_syncDirty')||'{}'); }catch(e){}
+  const newMeta={};
+  let n=0, kept=0;
   for(const k in ks){
+    const cur=localStorage.getItem(k);
+    const cm=meta[k]||{};
+    /* 本机有「上次同步之后的新改动」且比云端新 → 保留本机，别被云端旧值覆盖 */
+    if(cur!==null&&k!=='ky_profiles'&&k!=='kys_profiles'&&k!=='kk_profiles'){
+      const base=sMeta[k]&&sMeta[k].h;
+      const lh=hash64(cur);
+      const lChanged=(base===undefined)||(lh!==base);
+      const cts=Date.parse(cm.rev||'')||0;
+      const lts=sDirty[k]||0;
+      if(lChanged&&lts>cts){ kept++; newMeta[k]=sMeta[k]||{rev:new Date().toISOString(),h:lh}; continue; }
+    }
     if(k==='ky_profiles'||k==='kys_profiles'||k==='kk_profiles'){
-      const local=localStorage.getItem(k);
-      localStorage.setItem(k,local?mergeProfiles(local,ks[k],k):ks[k]);
+      localStorage.setItem(k,cur?mergeProfiles(cur,ks[k],k):ks[k]);
     }else{
       localStorage.setItem(k,ks[k]);
     }
+    newMeta[k]={rev:cm.rev||o.exported||'',h:hash64(String(ks[k]))};
     n++;
   }
   for(const profile in (o.cards||{})){
@@ -8137,9 +8236,11 @@ async function applyCloudData(o){
     const ex=await IDB.get(key);
     await IDB.set(key,ex?mergeCardRaw(ex,o.cards[profile]):o.cards[profile]);
   }
+  localStorage.setItem('_syncMeta',JSON.stringify(newMeta));
+  if(window._clearSyncDirty)window._clearSyncDirty();
   localStorage.setItem('lastCloudCheck',o.exported||'');
   localStorage.setItem('_cloudBuf',JSON.stringify(o));
-  toast('云端数据已恢复（'+n+' 项），页面即将刷新');
+  toast('云端数据已恢复（'+n+' 项'+(kept?('，保留本机较新的 '+kept+' 项'):'')+'），页面即将刷新');
   setTimeout(()=>location.reload(),900);
 }
 /* 恢复下载进度提示 */
