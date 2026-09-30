@@ -6900,6 +6900,7 @@ async function syncOpen(){
     +'<div class="sync-status">'
       +'<div class="ss-row"><span class="ss-k">云端账号</span><span class="ss-v">@'+esc(ghOwner())+(ghPat()?'（本机已保存令牌）':'（尚未填令牌）')+'</span></div>'
       +'<div class="ss-row"><span class="ss-k">上次上传</span><span class="ss-v">'+esc(lastUp)+'</span></div>'
+      +'<div class="ss-row"><span class="ss-k">程序版本</span><span class="ss-v">'+esc(APP_BUILD)+'</span></div>'
       +'<div class="ss-row"><span class="ss-k">本机存储</span><span class="ss-v">已用 '+usedMB.toFixed(1)+' MB / 可用约 '+Math.max(0,quotaMB-usedMB).toFixed(0)+' MB</span></div>'
     +'</div>'
     +(quotaMB?'<div class="ss-quota"><i style="width:'+pct.toFixed(1)+'%"></i></div>':'')
@@ -7070,6 +7071,8 @@ function backupRemind(){
  * - 自动同步：数据变化后防抖自动上传；打开页面 / 切换回页面自动检查云端
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
+/* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
+const APP_BUILD='2026-09-30.28';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -8321,7 +8324,7 @@ function cloudSetupBanner(){
     const b=document.getElementById('remindBar');
     if(!b) return;
     b.style.display='flex';
-    b.innerHTML='<span class="rb-text">云端尚未配置：填一次令牌即可三端同步（令牌只保存在本机，不会写进页面）。</span>'
+    b.innerHTML='<span class="rb-text">云端尚未配置（程序版本 '+APP_BUILD+'）：填一次令牌即可三端同步（令牌只保存在本机，不会写进页面）。</span>'
       +'<button class="rb-btn ok" onclick="syncOpen()">去配置</button>';
   }catch(e){}
 }
