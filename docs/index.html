@@ -8604,7 +8604,7 @@ async function ghUploadOnce(opts){
       if(cChanged&&!lChanged){ localKeys[k]=cv; newMeta[k]={rev:cm0.rev||exp,h:ch}; return; }
       if(!cChanged){ newMeta[k]={rev:lChanged?_now():(cm0.rev||exp),h:lh}; return; }
       /* 两边都改过 → 比时间：本地改动时刻 vs 云端 rev */
-      const lts=sDirty[k]||0;
+      const lts=sDirty[k]||window._syncDirtyAny||0;
       const cts=Date.parse(cm0.rev||'')||0;
       if(cts>lts){ localKeys[k]=cv; newMeta[k]={rev:cm0.rev||exp,h:ch}; }
       else{ newMeta[k]={rev:_now(),h:lh}; }
@@ -8756,13 +8756,27 @@ async function ghUploadOnce(opts){
     let dirty={};
     try{ dirty=JSON.parse(orig('_syncDirty')||'{}')||{}; }catch(e){ dirty={}; }
     const SKIP={_syncDirty:1,_syncMeta:1,ghPat:1,ghOwner:1,lastCloudCheck:1,ghLastUpload:1,_cloudBuf:1};
-    localStorage.setItem=function(k,v){
-      orig(k,v);
-      if(!SKIP[k]) dirty[k]=Date.now();
+    /* 记录一次改动。_syncDirtyAny 是"设备级兜底时间"：万一某个键拿不到按 key 的时间，
+       冲突判定就用它，否则会退化成"云端永远赢"，本机这次的改动静默丢失。 */
+    window._markDirty=function(k){
+      if(k&&!SKIP[k]) dirty[k]=Date.now();
+      window._syncDirtyAny=Date.now();
     };
+    localStorage.setItem=function(k,v){ orig(k,v); window._markDirty(k); };
     const flush=()=>{ try{ orig('_syncDirty',JSON.stringify(dirty)); }catch(e){} };
     window._flushSyncDirty=flush;
-    window._clearSyncDirty=function(){ dirty={}; flush(); };
+    window._clearSyncDirty=function(){ dirty={}; window._syncDirtyAny=0; flush(); };
+    /* 三个子台各自有独立的 Storage 对象，总台的包装管不到它们 ——
+       不补这一层，子台写的 kys_data_xx 和 ky_profiles 就没有改动时间（历史上的丢改动路径）。
+       子台加载后由总台调用这里把它们的 setItem 也包上。 */
+    window._patchFrameDirty=function(w){
+      try{
+        if(!w||w.__dirtyPatched)return;
+        const o=w.localStorage.setItem.bind(w.localStorage);
+        w.localStorage.setItem=function(k,v){ o(k,v); window._markDirty(k); };
+        w.__dirtyPatched=1;
+      }catch(e){}
+    };
     setInterval(flush,5000);
     window.addEventListener('pagehide',flush);
   }catch(e){}
@@ -8982,7 +8996,7 @@ async function applyCloudData(o){
       const lh=hash64(cur);
       const lChanged=(base===undefined)||(lh!==base);
       const cts=Date.parse(cm.rev||'')||0;
-      const lts=sDirty[k]||0;
+      const lts=sDirty[k]||window._syncDirtyAny||0;
       if(lChanged&&lts>cts){ kept++; newMeta[k]=sMeta[k]||{rev:new Date().toISOString(),h:lh}; continue; }
     }
     if(k==='ky_profiles'||k==='kys_profiles'||k==='kk_profiles'){
@@ -9149,7 +9163,7 @@ window.addEventListener('hashchange',()=>{
 
 document.addEventListener('DOMContentLoaded', async ()=>{
   if(localStorage.getItem('hub_theme')==='dark'){ document.body.setAttribute('data-theme','dark'); }
-  FRAMES.forEach(f=>{ f.addEventListener('load',()=>{ applyThemeToFrames(hubIsDark()); }); });
+  FRAMES.forEach(f=>{ f.addEventListener('load',()=>{ applyThemeToFrames(hubIsDark()); try{ window._patchFrameDirty&&window._patchFrameDirty(f.contentWindow); }catch(e){} }); try{ window._patchFrameDirty&&window._patchFrameDirty(f.contentWindow); }catch(e){} });
   render(); idRender(); backupRemind(); renderPotato();
   try{ await migrateCardToIDB(); }catch(e){}
   await repairCardEncodingOnce();
