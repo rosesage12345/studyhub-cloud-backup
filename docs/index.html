@@ -7786,30 +7786,42 @@ function cardChunkOK(o,profile,parts,name){
 }
 /* 统一取云端分块：CDN 竞速（快）→ 校验 → raw.githubusercontent（近乎实时）→ GitHub API（最准）。
    三级兜底是为了让"CDN 缓存了旧版本"这种情况能自动绕过去。 */
+/* 在多个候选里取「第一个通过校验」的结果，而不是「第一个响应的」。
+   实测 jsDelivr 各镜像缓存进度差很多（cdn 已是新版，testingcf 还停在上上版甚至乱码版），
+   只按响应速度取就会随机拿到旧数据 —— 这正是长期「同步变奇怪」的总根子。 */
+function firstValid(promises){
+  return new Promise(function(resolve){
+    let left=promises.length, done=false;
+    if(!left){ resolve(null); return; }
+    promises.forEach(function(p){
+      p.then(function(v){ if(!done&&v){ done=true; resolve(v); } if(--left===0&&!done) resolve(null); });
+    });
+  });
+}
 async function fetchCardChunk(f,profile,parts){
-  try{
-    const t=await cdnRace(ghOwner()+'/'+GH_REPO+'@main/'+f,8000);
-    if(t){ const o=JSON.parse(t); if(cardChunkOK(o,profile,parts,f)) return o; }
-  }catch(e){}
-  /* CDN 拿不到或内容对不上 → raw 与 API 同时竞速，谁先返回可用数据就用谁。
-     国内 raw.githubusercontent 常被墙，串行等它会白等十几秒。 */
-  const rawP=(async()=>{
+  const path=ghOwner()+'/'+GH_REPO+'@main/'+f;
+  /* 各镜像 + raw + API 同时发起，取第一个内容校验通过的 */
+  const tries=CDN_MIRRORS.map(function(m){
+    return cloudFetchTO(m+path,{},9000).then(function(r){return r.text();}).then(function(t){
+      const o=JSON.parse(t);
+      if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
+      return o;
+    }).catch(function(){return null;});
+  });
+  tries.push((async function(){
     const r=await cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},10000);
     const o=JSON.parse(await r.text());
     if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
     return o;
-  })().catch(()=>null);
-  const apiP=(async()=>{
-    const j=await apiGetFile(f,20000);
-    if(j&&j.json&&Array.isArray(j.json.words)&&cardChunkOK(j.json,profile,parts,f)) return j.json;
-    throw new Error('none');
-  })().catch(()=>null);
-  return await new Promise(function(resolve){
-    let left=2, done=false;
-    [rawP,apiP].forEach(function(p){
-      p.then(function(v){ if(!done&&v){ done=true; resolve(v); } if(--left===0&&!done) resolve(null); });
-    });
-  });
+  })().catch(function(){return null;}));
+  if(ghPat()){
+    tries.push((async function(){
+      const j=await apiGetFile(f,20000);
+      if(j&&j.json&&Array.isArray(j.json.words)&&cardChunkOK(j.json,profile,parts,f)) return j.json;
+      throw new Error('none');
+    })().catch(function(){return null;}));
+  }
+  return await firstValid(tries);
 }
 /* ---------- 多存档容器合并（ky_profiles / kys_profiles / kk_profiles） ----------
  * 语义：b 中 a 没有的存档补入；同名存档比较 rev（最后修改时间），新者整体覆盖；
@@ -8164,6 +8176,15 @@ async function ghUploadOnce(opts){
         throw new Error('词库将从 '+cloudWordCount[k]+' 个减少到 '+mw.length+' 个（无删除记录），已中止上传以防丢数据。确需批量删除请先逐条删除再同步');
       }
     }
+    /* ===== 并集写回本机（设备自愈）=====
+       mergedCardRaw 是「云端 ∪ 本机」的并集。写回本机后，本机缺的词会在同步时自动补回来；
+       否则会出现"云端有、本机一直缺，用户永远看不到"的尴尬（Unit01 丢失就是这种表现）。 */
+    for(const k of Object.keys(mergedCardRaw)){
+      try{
+        const cur=await IDB.get(k);
+        if(cur!==mergedCardRaw[k]) await IDB.set(k,mergedCardRaw[k]);
+      }catch(e){}
+    }
     /* ---------- 生成待提交内容（内容寻址：内容没变的文件不重传） ---------- */
     const newFiles={};
     newFiles['backup.json']=JSON.stringify({exported:exp,keys:localKeys});
@@ -8173,7 +8194,8 @@ async function ghUploadOnce(opts){
       const chunks=chunkCard(profile,mergedCardRaw[k]);
       const files=[];
       chunks.forEach((ch,i)=>{ const f=cardFileName(profile,i,ch); files.push(f); newFiles[f]=JSON.stringify(ch); });
-      cardsMeta.push({profile:profile,parts:chunks.length,files:files});
+      let wc=0; try{ wc=(JSON.parse(mergedCardRaw[k]||'{}').words||[]).length; }catch(e){}
+      cardsMeta.push({profile:profile,parts:chunks.length,files:files,words:wc});
     });
     /* 云端独有存档继续列入清单，其他设备仍能发现它们 */
     preservedCards.forEach(c=>{ cardsMeta.push({profile:c.profile,parts:c.parts,files:(c.files||[]).slice()}); });
@@ -8314,21 +8336,37 @@ function manifestOK(m){
 }
 async function fetchManifest(){
   const owner=ghOwner();
-  const ghPath=owner+'/'+GH_REPO+'@main/manifest.json';
-  const apiP=ghPat()?apiGetFile('manifest.json',10000):Promise.resolve(null);
-  const cdP=cdnRace(ghPath,8000).then(function(t){try{return t?JSON.parse(t):null;}catch(e){return null;}});
-  const rs=await Promise.all([apiP,cdP]);
-  if(rs[0]&&rs[0].json&&manifestOK(rs[0].json))return {m:rs[0].json,src:'api'};
-  if(rs[1]&&manifestOK(rs[1]))return {m:rs[1],src:'cdn'};
-  /* CDN 给的是旧缓存（版本号偏老）→ 再试 raw，最后才退回 API 原始结果 */
-  try{
+  const path=owner+'/'+GH_REPO+'@main/manifest.json';
+  /* 有令牌时 API 优先：它是权威版本，且实测只要几毫秒 */
+  if(ghPat()){
+    try{
+      const j=await apiGetFile('manifest.json',10000);
+      if(j&&j.json&&manifestOK(j.json)) return {m:j.json,src:'api'};
+    }catch(e){}
+  }
+  /* 没令牌（或 API 失败）：各镜像 + raw + API 同时发起，取第一个校验通过的。
+     绝不退回"被校验拒绝的旧清单"—— 那正是恢复出乱码的原因。 */
+  const tries=CDN_MIRRORS.map(function(m){
+    return cloudFetchTO(m+path,{},9000).then(function(r){return r.text();}).then(function(t){
+      const m=JSON.parse(t);
+      if(!manifestOK(m)) throw new Error('stale');
+      return {m:m,src:'cdn'};
+    }).catch(function(){return null;});
+  });
+  tries.push((async function(){
     const r=await cloudFetchTO('https://raw.githubusercontent.com/'+owner+'/'+GH_REPO+'/main/manifest.json',{},10000);
     const m=JSON.parse(await r.text());
-    if(manifestOK(m))return {m:m,src:'raw'};
-  }catch(e){}
-  if(rs[0]&&rs[0].json)return {m:rs[0].json,src:'api'};
-  if(rs[1])return {m:rs[1],src:'cdn'};
-  return null;
+    if(!manifestOK(m)) throw new Error('stale');
+    return {m:m,src:'raw'};
+  })().catch(function(){return null;}));
+  if(ghPat()){
+    tries.push((async function(){
+      const j=await apiGetFile('manifest.json',12000);
+      if(j&&j.json&&manifestOK(j.json)) return {m:j.json,src:'api'};
+      throw new Error('none');
+    })().catch(function(){return null;}));
+  }
+  return await firstValid(tries);
 }
 async function cloudDoApi(){
   if(window._checking){ return; }
@@ -8401,6 +8439,16 @@ async function cloudRestore(){
           return JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]});
         }catch(e){return null;}
       })).filter(Boolean);
+      /* ===== 清单里列出的分块必须全部拿到 =====
+         以前这里只是 .filter(Boolean) 把失败的分块悄悄丢掉，于是会写出"少了一整块词、
+         却不报任何错"的残缺数据；这份残缺数据再被同步上传，云端也跟着缺。
+         「红宝书·必考词Unit01」整单元 67 词就是这么没的。现在宁可中止，也不写出残缺数据。 */
+      const _miss=(c.files||[]).length-pieces.length;
+      if(_miss>0){
+        restoreProgressHide();
+        toast('有 '+_miss+' 个分块没下载成功，已中止恢复（避免写出缺词的数据）。请检查网络后重试');
+        return;
+      }
       let raw=null;pieces.forEach(function(p){raw=raw?mergeCardRaw(raw,p):p;});
       if(raw)cards[c.profile]=raw;
     }
@@ -8525,7 +8573,7 @@ function cloudSetupBanner(){
     const b=document.getElementById('remindBar');
     if(!b) return;
     b.style.display='flex';
-    b.innerHTML='<span class="rb-text">云端尚未配置（程序版本 '+APP_BUILD+'）：填一次令牌即可三端同步（令牌只保存在本机，不会写进页面）。</span>'
+    b.innerHTML='<span class="rb-text">云端尚未配置（程序版本 '+APP_BUILD+'）：配置一次即可<b>自动恢复全部数据</b>并三端同步。令牌只保存在本机，不会写进网页。</span>'
       +'<button class="rb-btn ok" onclick="syncOpen()">去配置</button>';
   }catch(e){}
 }
