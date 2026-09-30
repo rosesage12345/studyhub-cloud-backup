@@ -8223,11 +8223,54 @@ async function firstRunAutoRestore(){
   }catch(e){}
 }
 
+/* ---------- 一次性修复：早期把中文按 Latin-1 误存导致词库名/释义乱码 ----------
+   三重判据，只动真乱码，正常中文与英文绝不触碰：
+     1) 不含中日韩文字/全角标点   2) 含 U+00C0–U+00FF 高位字符   3) 还原后无替换符
+   修好写回本机，云端也已同步修复；这样设备即使先同步也不会把坏数据推回去。 */
+function _looksMojibake(s){
+  if(typeof s!=='string'||!s)return false;
+  if(/[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/.test(s))return false;
+  if(!/[\u00c0-\u00ff]/.test(s))return false;
+  try{ return decodeURIComponent(escape(s)).indexOf('\ufffd')<0; }catch(e){ return false; }
+}
+function _repairStr(s){
+  if(!_looksMojibake(s))return s;
+  try{ const d=decodeURIComponent(escape(s)); return d.indexOf('\ufffd')<0?d:s; }catch(e){ return s; }
+}
+async function repairCardEncodingOnce(){
+  try{
+    if(localStorage.getItem('hub_enc_fixed'))return;
+    const keys=(await IDB.keys()).filter(k=>String(k).indexOf('kk_data_')===0);
+    let changed=0;
+    for(const k of keys){
+      const raw=await IDB.get(k); if(!raw)continue;
+      const o=JSON.parse(raw); let n=0;
+      (o.words||[]).forEach(w=>{
+        ['lib','trans','hook','ex','ext','sample','note','pos'].forEach(f=>{
+          if(typeof w[f]==='string'&&w[f]){ const r=_repairStr(w[f]); if(r!==w[f]){ w[f]=r; n++; } }
+        });
+      });
+      if(n){ await IDB.set(k,JSON.stringify(o)); changed+=n; }
+    }
+    localStorage.setItem('hub_enc_fixed','1');
+    if(changed)toast('已修复 '+changed+' 处乱码文本');
+  }catch(e){}
+}
+/* 在已打开的页面上粘贴配置链接时，只有地址尾巴变化 → 浏览器不会重新加载，
+   必须监听 hashchange，否则配置不会生效（用户实测踩过这个坑）。 */
+window.addEventListener('hashchange',()=>{
+  if(importCloudTokenFromHash()){
+    toast('云端账号已配置完成，正在刷新…');
+    setTimeout(()=>{ try{ location.reload(); }catch(e){} },600);
+  }
+});
+
 document.addEventListener('DOMContentLoaded', async ()=>{
   if(localStorage.getItem('hub_theme')==='dark'){ document.body.setAttribute('data-theme','dark'); }
   FRAMES.forEach(f=>{ f.addEventListener('load',()=>{ applyThemeToFrames(hubIsDark()); }); });
   render(); idRender(); backupRemind(); renderPotato();
   try{ await migrateCardToIDB(); }catch(e){}
+  await repairCardEncodingOnce();
   if(importCloudTokenFromHash()){ toast('云端账号已配置完成'); }
   await firstRunAutoRestore();
   updateCloudDot(); cloudSetupBanner(); cloudDo();
