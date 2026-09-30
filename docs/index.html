@@ -7591,24 +7591,27 @@ function normHistory(h){
    jsDelivr 等 CDN 会在文件被覆盖后继续返回**旧缓存**，若直接采信，
    就会把过期版本的词库混进合并结果（表现为词数对不上、数据反复横跳）。
    校验不通过时必须改走 GitHub API（无缓存）。 */
-function cardChunkOK(o,profile,parts){
+function cardChunkOK(o,profile,parts,exp){
   if(!o||!Array.isArray(o.words))return false;
   if(profile&&o.profile&&o.profile!==profile)return false;
   if(typeof o.total==='number'&&typeof parts==='number'&&parts>0&&o.total!==parts)return false;
   if(typeof o.part==='number'&&typeof o.total==='number'&&(o.part<0||o.part>=o.total))return false;
+  /* 内容版本必须与清单一致。CDN 缓存了「被覆盖之前的旧版本」时，这里会拦下来并改走 raw/API。
+     旧版分块没有 exp 字段 → o.exp 为 undefined → 同样被拒绝，于是历史缓存会被自动绕开。 */
+  if(exp!==undefined&&exp!==null&&exp!==''&&o.exp!==exp)return false;
   return true;
 }
 /* 统一取云端分块：CDN 竞速（快）→ 校验 → raw.githubusercontent（近乎实时）→ GitHub API（最准）。
    三级兜底是为了让"CDN 缓存了旧版本"这种情况能自动绕过去。 */
-async function fetchCardChunk(f,profile,parts){
+async function fetchCardChunk(f,profile,parts,exp){
   try{
     const t=await cdnRace(ghOwner()+'/'+GH_REPO+'@main/'+f,8000);
-    if(t){ const o=JSON.parse(t); if(cardChunkOK(o,profile,parts)) return o; }
+    if(t){ const o=JSON.parse(t); if(cardChunkOK(o,profile,parts,exp)) return o; }
   }catch(e){}
   try{
     const r=await cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},12000);
     const o=JSON.parse(await r.text());
-    if(cardChunkOK(o,profile,parts)) return o;
+    if(cardChunkOK(o,profile,parts,exp)) return o;
   }catch(e){}
   try{
     const j=await apiGetFile(f,20000);
@@ -7699,7 +7702,7 @@ function collectLocalKeys(){
 
 /* ---------- 词卡切块（每块 JSON ≤ 约 230KB，base64 后请求体安全） ---------- */
 const CHUNK_TARGET=230000;
-function chunkCard(profileId,raw){
+function chunkCard(profileId,raw,exp){
   let d={};
   try{ d=JSON.parse(raw||'{}'); }catch(e){ d={}; }
   const words=d.words||[];
@@ -7709,7 +7712,7 @@ function chunkCard(profileId,raw){
   words.forEach(w=>{ cur.push(w); if(JSON.stringify(cur).length>=CHUNK_TARGET) flush(); });
   if(cur.length) flush();
   if(!chunks.length) chunks.push([]);
-  return chunks.map((ws,i)=>({v:3,profile:profileId,part:i,total:chunks.length,words:ws,history:i===chunks.length-1?normHistory(d.history):undefined,graves:i===chunks.length-1?(d.graves||[]):undefined}));
+  return chunks.map((ws,i)=>({v:3,profile:profileId,exp:exp||'',part:i,total:chunks.length,words:ws,history:i===chunks.length-1?normHistory(d.history):undefined,graves:i===chunks.length-1?(d.graves||[]):undefined}));
 }
 
 /* ---------- 高级：保存自定义云端账号（覆盖内置） ---------- */
@@ -7829,7 +7832,7 @@ async function ghUpload(opts){
     const fileJobs=[];
     for(const cc of ((cm&&cm.cards)||[])){ for(const f of (cc.files||[])) fileJobs.push({profile:cc.profile,parts:cc.parts,f}); }
     const gotPieces=await mapLimit(fileJobs,4,async jb=>{
-      const o=await fetchCardChunk(jb.f,jb.profile,jb.parts);
+      const o=await fetchCardChunk(jb.f,jb.profile,jb.parts,cm&&cm.exported);
       if(o) return {profile:jb.profile, piece:JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]})};
       return null;
     });
@@ -7889,7 +7892,7 @@ async function ghUpload(opts){
     const cardsMeta=[];
     Object.keys(mergedCardRaw).forEach(k=>{
       const profile=k.replace('kk_data_','');
-      const chunks=chunkCard(profile,mergedCardRaw[k]);
+      const chunks=chunkCard(profile,mergedCardRaw[k],exp);
       const files=[];
       chunks.forEach((ch,i)=>{ const f='kk_card_'+profile+'_'+i+'.json'; files.push(f); newFiles[f]=JSON.stringify(ch); });
       cardsMeta.push({profile:profile,parts:chunks.length,files:files});
@@ -8090,7 +8093,7 @@ async function cloudRestore(){
     for(const c of (m.cards||[])){
       const pieces=(await mapLimit(c.files,4,async function(f){
         try{
-          const o=await fetchCardChunk(f,c.profile,c.parts);
+          const o=await fetchCardChunk(f,c.profile,c.parts,m&&m.exported);
           if(!o) return null;
           return JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]});
         }catch(e){return null;}
@@ -8239,8 +8242,11 @@ function _repairStr(s){
 }
 async function repairCardEncodingOnce(){
   try{
-    if(localStorage.getItem('hub_enc_fixed'))return;
     const keys=(await IDB.keys()).filter(k=>String(k).indexOf('kk_data_')===0);
+    /* 本机还没有词卡（例如刚换域名、马上要从云端恢复）→ 不写标记，
+       等恢复完成后的那次刷新再修，否则乱码会被永久跳过。 */
+    if(!keys.length)return;
+    if(localStorage.getItem('hub_enc_fix2'))return;
     let changed=0;
     for(const k of keys){
       const raw=await IDB.get(k); if(!raw)continue;
@@ -8252,7 +8258,7 @@ async function repairCardEncodingOnce(){
       });
       if(n){ await IDB.set(k,JSON.stringify(o)); changed+=n; }
     }
-    localStorage.setItem('hub_enc_fixed','1');
+    localStorage.setItem('hub_enc_fix2','1');
     if(changed)toast('已修复 '+changed+' 处乱码文本');
   }catch(e){}
 }
