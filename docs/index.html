@@ -5641,6 +5641,7 @@ function openPassImport(){
     +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;卡包日期（年月日）&lt;/label&gt;&lt;input type=&quot;date&quot; id=&quot;piDate&quot; value=&quot;'+todayStr()+'&quot;&gt;&lt;/div&gt;'
     +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;粘贴 AI 生成的钩子文本&lt;/label&gt;&lt;textarea id=&quot;piText&quot; style=&quot;min-height:220px&quot; placeholder=&quot;把 AI 生成的整段钩子文本粘贴到这里…&quot;&gt;&lt;/textarea&gt;&lt;/div&gt;'
     +'&lt;label class=&quot;pi-opt&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;piBack&quot; checked&gt; 同时把钩子写进同名词库里的词条（&lt;b&gt;只填空缺，不覆盖已有内容&lt;/b&gt;）&lt;/label&gt;'
+    +'&lt;label class=&quot;pi-opt&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;piMove&quot; checked&gt; 把同名的「不会词库」原词&lt;b&gt;移到这里&lt;/b&gt;（不再两边各留一份，学习进度会保留）&lt;/label&gt;'
     +'&lt;div id=&quot;piPreview&quot;&gt;&lt;/div&gt;'
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn&quot; id=&quot;piParse&quot;&gt;解析预览&lt;/button&gt;&lt;button class=&quot;btn primary&quot; id=&quot;piOk&quot; disabled&gt;生成背诵过关&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;';
   openModal(html);
@@ -5662,9 +5663,12 @@ function openPassImport(){
   $('piOk').addEventListener('click',function(){
     const date=$('piDate').value||todayStr();
     const lib=PASSPREFIX+date;
-    let add=0, upd=0;
+    const doMove=!!($('piMove')&amp;&amp;$('piMove').checked);
+    let add=0, upd=0, moved=0;
     parsed.items.forEach(function(p){
-      const ex=WORDS.find(function(w){return isPassLib(w.lib)&amp;&amp;passDateOf(w.lib)===date&amp;&amp;String(w.w).toLowerCase()===String(p.w).toLowerCase();});
+      const key=String(p.w).toLowerCase();
+      /* 1) 目标卡包里已经有同名词 → 只补空缺字段 */
+      const ex=WORDS.find(function(w){return isPassLib(w.lib)&amp;&amp;passDateOf(w.lib)===date&amp;&amp;String(w.w).toLowerCase()===key;});
       if(ex){
         if(p.ipa&amp;&amp;!ex.ipa)ex.ipa=p.ipa;
         if(p.trans&amp;&amp;!ex.trans)ex.trans=p.trans;
@@ -5674,15 +5678,33 @@ function openPassImport(){
         if(p.ext&amp;&amp;!ex.ext)ex.ext=p.ext;
         if(p.fun&amp;&amp;!ex.note)ex.note=p.fun;
         upd++;
-      }else{
-        WORDS.push({id:uid(),w:p.w,ipa:p.ipa,trans:p.trans,hook:p.hook,sample:p.mem,ex:p.ex,ext:p.ext,note:p.fun,lib:lib,mastered:false,stage:0,wrong:0,next:'',ts:''});
-        add++;
+        return;
       }
+      /* 2) 「不会词库」里有同名词 → **移动**过来（改 lib），不是删掉再新建。
+         这样做的好处：id 保持不变 → 该词的学习进度（mastered/wrong/ts）保留，
+         云端同步时也只是一次「更新」，不会变成「删除 + 新增」从而产生墓碑与重复。 */
+      const src=doMove?WORDS.find(function(w){return isNoLib(w.lib)&amp;&amp;String(w.w).toLowerCase()===key;}):null;
+      if(src){
+        src.lib=lib;
+        if(p.ipa)src.ipa=p.ipa;
+        if(p.trans)src.trans=p.trans;
+        if(p.hook)src.hook=p.hook;
+        if(p.mem)src.sample=p.mem;
+        if(p.ex)src.ex=p.ex;
+        if(p.ext)src.ext=p.ext;
+        if(p.fun)src.note=p.fun;
+        src.next=todayStr();src.ts=todayStr();
+        moved++;
+        return;
+      }
+      /* 3) 全新词 → 新建 */
+      WORDS.push({id:uid(),w:p.w,ipa:p.ipa,trans:p.trans,hook:p.hook,sample:p.mem,ex:p.ex,ext:p.ext,note:p.fun,lib:lib,mastered:false,stage:0,wrong:0,next:'',ts:''});
+      add++;
     });
     let bf=0;
     if($('piBack')&amp;&amp;$('piBack').checked) bf=backfillHooks(parsed.items);
     save();renderPass();closeModal();
-    toast('已生成 '+date+' 背诵过关：新增 '+add+' 词'+(upd?('、补全 '+upd+' 词'):'')+(bf?('，回填 '+bf+' 个词条'):''));
+    toast('已生成 '+date+' 背诵过关：新增 '+add+' 词'+(moved?('、从不会词库移入 '+moved+' 词'):'')+(upd?('、补全 '+upd+' 词'):'')+(bf?('，回填 '+bf+' 个词条'):''));
   });
 }
 
@@ -7916,7 +7938,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-01.31';
+const APP_BUILD='2026-10-01.32';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
