@@ -7915,7 +7915,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-09-30.28';
+const APP_BUILD='2026-10-01.29';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -8482,37 +8482,31 @@ function firstValid(promises){
 }
 async function fetchCardChunk(f,profile,parts){
   const path=ghOwner()+'/'+GH_REPO+'@main/'+f;
-  let got=null;
-  /* 四个 CDN 镜像立刻并发；raw 与 API 作为兜底延后 1.5 秒再发。
-     国内网络 raw.githubusercontent.com 基本不可达，每次无脑发只会刷一堆
-     无意义的报错（还会淹没真正的错误），而 CDN 正常时根本用不到它们。 */
-  const tries=CDN_MIRRORS.map(function(m){
+  /* 第一层：四个 CDN 镜像竞速。分块是**内容寻址**的（文件名含内容哈希），
+     所以 CDN 上不可能有旧版本，拿到就能用 —— 不用等，也不用验缓存新旧。 */
+  const cdn=await firstValid(CDN_MIRRORS.map(function(m){
     return cloudFetchTO(m+path,{},9000).then(function(r){return r.text();}).then(function(t){
       const o=JSON.parse(t);
       if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
-      got=o; return o;
+      return o;
     }).catch(function(){return null;});
-  });
-  const late=function(fn){
-    return new Promise(function(res){ setTimeout(function(){ res(got?null:fn()); },1500); });
-  };
-  tries.push(late(function(){
-    return cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},10000)
-      .then(function(r){return r.text();}).then(function(t){
-        const o=JSON.parse(t);
-        if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
-        return o;
-      }).catch(function(){return null;});
   }));
-  if(ghPat()){
-    tries.push(late(function(){
-      return apiGetFile(f,20000).then(function(j){
-        if(j&&j.json&&Array.isArray(j.json.words)&&cardChunkOK(j.json,profile,parts,f)) return j.json;
-        return null;
-      }).catch(function(){return null;});
-    }));
-  }
-  return await firstValid(tries);
+  if(cdn) return cdn;
+  /* 第二层：CDN 全失败（极少数情况）才动 raw 与 API。
+     无令牌也允许匿名读 API（公开仓库），但只作为最后兜底，免得浪费限流配额。 */
+  const fb=[];
+  fb.push((async function(){
+    const r=await cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},10000);
+    const o=JSON.parse(await r.text());
+    if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
+    return o;
+  })().catch(function(){return null;}));
+  fb.push((async function(){
+    const j=await apiGetFile(f,20000);
+    if(j&&j.json&&Array.isArray(j.json.words)&&cardChunkOK(j.json,profile,parts,f)) return j.json;
+    return null;
+  })().catch(function(){return null;}));
+  return await firstValid(fb);
 }
 
 /* ---------- 多存档容器合并（ky_profiles / kys_profiles / kk_profiles） ----------
@@ -9043,12 +9037,23 @@ async function cdnRace(ghPath,ms){
     return await r.text();
   }catch(e){return null;}
 }
+/* 清单协议版本：低于此版本的清单一定是 CDN 旧缓存（现网只会写 v6），不能采信 */
+const MANIFEST_MIN_VERSION=6;
+function manifestOK(m){
+  return !!(m&&typeof m==='object'&&Array.isArray(m.cards)
+    &&(typeof m.version!=='number'||m.version>=MANIFEST_MIN_VERSION));
+}
 /* API 读取文件（准确）：返回 {json,raw}，失败 null */
-async function apiGetFile(path,ms){
-  if(!ghPat()) return null;   /* 未配置令牌时不发请求，避免刷 401 报错 */
+async function apiGetFile(path,ms,opt){
+  opt=opt||{};
   const owner=ghOwner();
   const url='https://api.github.com/repos/'+owner+'/'+GH_REPO+'/contents/'+path;
-  const h={Authorization:'Bearer '+ghPat(),Accept:'application/vnd.github+json'};
+  /* 有令牌就带上（配额 5000/小时）；**没令牌也照发** —— 公开仓库允许匿名读（60/小时）。
+     这一步是关键：jsDelivr 各镜像的 manifest.json 缓存进度能差一整天
+     （实测 4 个镜像里 3 个落后 29 小时），而 API 拿到的永远是权威最新版。 */
+  const h={Accept:'application/vnd.github+json'};
+  if(ghPat()) h.Authorization='Bearer '+ghPat();
+  else if(opt.needAuth) return null;
   try{
     const r=await cloudFetchTO(url,{headers:h},ms||15000);
     const j=await r.json();
@@ -9056,30 +9061,40 @@ async function apiGetFile(path,ms){
   }catch(e){}
   return null;
 }
-/* 读 manifest：API 准确优先（10s），CDN 竞速兜底（快） */
-/* 清单协议版本：低于此版本的清单一定是 CDN 旧缓存（现网只会写 v6），不能采信 */
-const MANIFEST_MIN_VERSION=6;
-function manifestOK(m){
-  return !!(m&&typeof m==='object'&&Array.isArray(m.cards)
-    &&(typeof m.version!=='number'||m.version>=MANIFEST_MIN_VERSION));
+/* 在多个候选里取「exported 最新」的那个，而不是「最先响应的」那个。
+   必要性：CDN 各镜像缓存进度不一致（实测同一个 manifest.json 能差 29 小时），
+   只按速度取就会随机拿到旧清单 —— 表现就是「别的设备新增的东西永远同步不过来」。 */
+function newestValid(promises,ms){
+  return new Promise(function(resolve){
+    const ok=[]; let left=promises.length, done=false;
+    function finish(){
+      if(done) return; done=true;
+      if(!ok.length){ resolve(null); return; }
+      ok.sort(function(a,b){ return String((b.m&&b.m.exported)||'').localeCompare(String((a.m&&a.m.exported)||'')); });
+      resolve(ok[0]);
+    }
+    const timer=setTimeout(finish,ms||3500);
+    promises.forEach(function(p){
+      Promise.resolve(p).then(function(v){ if(v) ok.push(v); },function(){})
+        .then(function(){ if(--left<=0&&!done){ clearTimeout(timer); finish(); } });
+    });
+  });
 }
+/* 读云端清单：API 权威优先（无令牌也可匿名读），失败才退回 CDN 镜像并取最新的一份 */
 async function fetchManifest(){
   const owner=ghOwner();
   const path=owner+'/'+GH_REPO+'@main/manifest.json';
-  /* 有令牌时 API 优先：它是权威版本，且实测只要几毫秒 */
-  if(ghPat()){
-    try{
-      const j=await apiGetFile('manifest.json',10000);
-      if(j&&j.json&&manifestOK(j.json)) return {m:j.json,src:'api'};
-    }catch(e){}
-  }
-  /* 没令牌（或 API 失败）：各镜像 + raw + API 同时发起，取第一个校验通过的。
-     绝不退回"被校验拒绝的旧清单"—— 那正是恢复出乱码的原因。 */
+  /* 1) GitHub API：权威最新版，拿到就立刻用，不拖延迟 */
+  try{
+    const j=await apiGetFile('manifest.json',12000);
+    if(j&&j.json&&manifestOK(j.json)) return {m:j.json,src:'api'};
+  }catch(e){}
+  /* 2) API 不可用（限流/网络）时才走 CDN：四个镜像 + raw，取 export 最新的那个 */
   const tries=CDN_MIRRORS.map(function(m){
     return cloudFetchTO(m+path,{},9000).then(function(r){return r.text();}).then(function(t){
-      const m=JSON.parse(t);
-      if(!manifestOK(m)) throw new Error('stale');
-      return {m:m,src:'cdn'};
+      const mm=JSON.parse(t);
+      if(!manifestOK(mm)) throw new Error('stale');
+      return {m:mm,src:'cdn'};
     }).catch(function(){return null;});
   });
   /* raw 兜底延后 1.5 秒：国内基本不可达，CDN 正常时不发，免得刷一堆无意义报错 */
@@ -9087,73 +9102,13 @@ async function fetchManifest(){
     setTimeout(function(){
       cloudFetchTO('https://raw.githubusercontent.com/'+owner+'/'+GH_REPO+'/main/manifest.json',{},10000)
         .then(function(r){return r.text();}).then(function(t){
-          const m=JSON.parse(t);
-          if(!manifestOK(m)) throw new Error('stale');
-          return {m:m,src:'raw'};
+          const mm=JSON.parse(t);
+          if(!manifestOK(mm)) throw new Error('stale');
+          return {m:mm,src:'raw'};
         }).catch(function(){return null;}).then(res);
     },1500);
   }));
-  if(ghPat()){
-    tries.push((async function(){
-      const j=await apiGetFile('manifest.json',12000);
-      if(j&&j.json&&manifestOK(j.json)) return {m:j.json,src:'api'};
-      throw new Error('none');
-    })().catch(function(){return null;}));
-  }
-  return await firstValid(tries);
-}
-/* 云端比本机新时：**自动**拉取并合并到本机。
-   老逻辑只弹一条「检测到云端备份 / 一键恢复」提示条，用户不点就永远不拉 ——
-   这正是「电脑上都设置好的钩子题库，平板和手机上却没有」的根因：
-   新设备/久未打开的设备只会看到一条小提示条，没人点它，数据就永远不过来。
-   本文件所有新增的题库、数据，只要写进 WORDS / localStorage，就会走这条自动通道。 */
-async function cloudAutoPull(){
-  if(window._pulling) return false;
-  const txt=localStorage.getItem('_cloudBuf');
-  if(!txt) return false;
-  let buf; try{ buf=JSON.parse(txt); }catch(e){ return false; }
-  window._pulling=true;
-  try{
-    const owner=ghOwner();
-    let m=buf.manifest;
-    /* 清单来自 CDN 时，先用 API 确认最新版本（CDN 缓存可能落后） */
-    if(!m||buf.src==='cdn'){
-      const r=await apiGetFile('manifest.json',15000);
-      if(r&&r.json)m=r.json;
-    }
-    if(!m) return false;
-    const ghBase=owner+'/'+GH_REPO+'@main/';
-    const downloadFile=async function(path){
-      const cdnP=cdnRace(ghBase+path,12000).then(function(t){ if(t){try{JSON.parse(t);return t;}catch(e){}} return null; }).catch(function(){return null;});
-      const apiP=apiGetFile(path,25000).then(function(r){return r?r.raw:null;}).catch(function(){return null;});
-      try{
-        return await Promise.any([cdnP,apiP].map(function(p){return p.then(function(v){if(v)return v;throw new Error('none');});}));
-      }catch(e){ return null; }
-    };
-    const bkText=await downloadFile(m.backup||'backup.json');
-    if(!bkText) return false;
-    let bk={}; try{ bk=JSON.parse(bkText); }catch(e){}
-    const cards={};
-    for(const c of (m.cards||[])){
-      const pieces=(await mapLimit(c.files,4,async function(f){
-        try{
-          const o=await fetchCardChunk(f,c.profile,c.parts);
-          if(!o) return null;
-          return JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]});
-        }catch(e){ return null; }
-      })).filter(Boolean);
-      /* 分块没拿全就跳过这整个存档：宁可不拉，也不写出缺词的残缺数据 */
-      if((c.files||[]).length!==pieces.length) continue;
-      let raw=null; pieces.forEach(function(p){ raw=raw?mergeCardRaw(raw,p):p; });
-      if(raw) cards[c.profile]=raw;
-    }
-    await applyCloudData({keys:bk.keys||{},cards:cards,manifest:m,meta:m.meta||{},exported:m.exported,src:'api'},{quiet:true});
-    return true;
-  }catch(e){
-    return false;
-  }finally{
-    window._pulling=false;
-  }
+  return await newestValid(tries,3500);
 }
 
 async function cloudDoApi(){
