@@ -7678,6 +7678,7 @@ async function syncOpen(){
   const usedMB=est.usage?(est.usage/1048576):0;
   const custom=ghUsingCustom();
   const lastUp=localStorage.getItem('ghLastUpload')||'还没上传过';
+  const lastPull=localStorage.getItem('lastCloudPull')||'还没拉取过';
   const autoOn=autoSync.on();
   const pct=quotaMB?Math.min(100,usedMB/quotaMB*100):0;
   $('syncBox').innerHTML=
@@ -7685,6 +7686,7 @@ async function syncOpen(){
     +'<div class="sync-status">'
       +'<div class="ss-row"><span class="ss-k">云端账号</span><span class="ss-v">@'+esc(ghOwner())+(ghPat()?'（本机已保存令牌）':'（尚未填令牌）')+'</span></div>'
       +'<div class="ss-row"><span class="ss-k">上次上传</span><span class="ss-v">'+esc(lastUp)+'</span></div>'
+      +'<div class="ss-row"><span class="ss-k">上次拉取</span><span class="ss-v">'+esc(lastPull)+'</span></div>'
       +'<div class="ss-row"><span class="ss-k">程序版本</span><span class="ss-v">'+esc(APP_BUILD)+'</span></div>'
       +'<div class="ss-row"><span class="ss-k">本机存储</span><span class="ss-v">已用 '+usedMB.toFixed(1)+' MB / 可用约 '+Math.max(0,quotaMB-usedMB).toFixed(0)+' MB</span></div>'
     +'</div>'
@@ -7692,6 +7694,7 @@ async function syncOpen(){
     +'<div class="sync-big">'
       +'<button class="sync-big-btn primary" onclick="ghUpload()"><b>立即上传</b><span>把本机数据推到云端</span></button>'
       +'<button class="sync-big-btn" onclick="cloudCheckNow()"><b>立即检查</b><span>拉取云端最新备份</span></button>'
+      +'<button class="sync-big-btn" onclick="syncSelfCheck()"><b>同步自检</b><span>看这台设备跟云端差多少</span></button>'
     +'</div>'
     +'<label class="sync-switch"><input type="checkbox" '+(autoOn?'checked':'')+' onchange="autoSync.set(this.checked);toast(this.checked?\'已开启自动同步\':\'已关闭自动同步\')"><span class="sw-track"><i></i></span><span class="sw-label">自动同步（数据变化约 25 秒后自动上传）</span></label>'
     +'<details class="sync-adv"'+(ghPat()?'':' open')+'><summary>云端账号设置</summary>'
@@ -7711,6 +7714,59 @@ async function syncOpen(){
     +'</details>'
     +'<button class="sync-close" onclick="document.getElementById(\'syncMask\').style.display=\'none\'">关闭</button>';
 }
+/* 同步自检：一眼看出这台设备有没有连上云端、跟云端差多少 */
+async function syncSelfCheck(){
+  const box=$('syncBox');
+  $('syncMask').style.display='flex';
+  box.innerHTML='<h3>同步自检</h3><p class="tip">正在读取云端…</p>';
+  const rows=[];
+  const tok=!!ghPat();
+  rows.push(['本机令牌', tok?'✅ 已配置':'❌ 未配置 —— 新设备必须配置一次才连得上云端']);
+  rows.push(['上次上传', (localStorage.getItem('ghLastUpload')||'（无）').replace('T',' ').slice(0,19)]);
+  rows.push(['上次拉取', (localStorage.getItem('lastCloudPull')||'（无）').replace('T',' ').slice(0,19)]);
+  let r=null;
+  try{ r=await fetchManifest(); }catch(e){}
+  if(!r){
+    rows.push(['云端清单', '❌ 读不到（网络不通，或本机没配令牌）']);
+  }else{
+    const m=r.m;
+    rows.push(['云端版本', 'v'+(m.version||'?')+'　导出于 '+String(m.exported||'').replace('T',' ').slice(0,19)]);
+    rows.push(['读取通道', r.src==='api'?'API（权威，最准）':'CDN 镜像（可能滞后几小时）']);
+    const localCount={};
+    try{
+      const keys=(await IDB.keys()).filter(function(k){return String(k).indexOf('kk_data_')===0;});
+      for(const k of keys){
+        const p=k.replace('kk_data_','');
+        try{ localCount[p]=(JSON.parse((await IDB.get(k))||'{}').words||[]).length; }catch(e){ localCount[p]='?'; }
+      }
+    }catch(e){}
+    const cloudCount={};
+    (m.cards||[]).forEach(function(c){ if(typeof c.words==='number') cloudCount[c.profile]=c.words; });
+    const profiles={};
+    Object.keys(localCount).forEach(function(p){ profiles[p]=1; });
+    Object.keys(cloudCount).forEach(function(p){ profiles[p]=1; });
+    const plist=Object.keys(profiles);
+    if(!plist.length) rows.push(['存档', '两边都还没有数据']);
+    plist.forEach(function(p){
+      const a=localCount[p], b=cloudCount[p];
+      let mark;
+      if(a===undefined) mark='⚠️ 本机没有（等自动拉取，或点下面「立即检查并拉取」）';
+      else if(b===undefined) mark='⚠️ 云端没有（点下面「立即上传本机」）';
+      else if(a===b) mark='✅ 一致';
+      else mark=(a>b?('↑ 本机多 '+(a-b)+' 词，尚未上传'):('↓ 云端多 '+(b-a)+' 词，尚未拉取'));
+      rows.push(['存档 '+p, '本机 '+(a===undefined?'—':a)+' 词 ／ 云端 '+(b===undefined?'—':b)+' 词　'+mark]);
+    });
+  }
+  let h='<h3>同步自检</h3><div class="sync-status">';
+  rows.forEach(function(x){ h+='<div class="ss-row"><span class="ss-k">'+esc(String(x[0]))+'</span><span class="ss-v" style="word-break:break-all">'+esc(String(x[1]))+'</span></div>'; });
+  h+='</div><p class="tip">电脑上加的东西手机上没有？先看两边的「本机令牌」是否都显示已配置，'
+    +'再比对各存档词数：显示「↓ 云端多」说明这台还没拉取到，点下面的按钮即可。</p>'
+    +'<div class="btn-row"><button class="btn primary" onclick="cloudCheckNow()">立即检查并拉取</button>'
+    +'<button class="btn" onclick="ghUpload()">立即上传本机</button>'
+    +'<button class="btn" onclick="syncOpen()">返回</button></div>';
+  box.innerHTML=h;
+}
+
 async function syncBackup(){
   const data={version:2, exported:new Date().toISOString(), keys:{}, idb:{}};
   for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); data.keys[k]=localStorage.getItem(k); }
@@ -8426,29 +8482,39 @@ function firstValid(promises){
 }
 async function fetchCardChunk(f,profile,parts){
   const path=ghOwner()+'/'+GH_REPO+'@main/'+f;
-  /* 各镜像 + raw + API 同时发起，取第一个内容校验通过的 */
+  let got=null;
+  /* 四个 CDN 镜像立刻并发；raw 与 API 作为兜底延后 1.5 秒再发。
+     国内网络 raw.githubusercontent.com 基本不可达，每次无脑发只会刷一堆
+     无意义的报错（还会淹没真正的错误），而 CDN 正常时根本用不到它们。 */
   const tries=CDN_MIRRORS.map(function(m){
     return cloudFetchTO(m+path,{},9000).then(function(r){return r.text();}).then(function(t){
       const o=JSON.parse(t);
       if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
-      return o;
+      got=o; return o;
     }).catch(function(){return null;});
   });
-  tries.push((async function(){
-    const r=await cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},10000);
-    const o=JSON.parse(await r.text());
-    if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
-    return o;
-  })().catch(function(){return null;}));
+  const late=function(fn){
+    return new Promise(function(res){ setTimeout(function(){ res(got?null:fn()); },1500); });
+  };
+  tries.push(late(function(){
+    return cloudFetchTO('https://raw.githubusercontent.com/'+ghOwner()+'/'+GH_REPO+'/main/'+f,{},10000)
+      .then(function(r){return r.text();}).then(function(t){
+        const o=JSON.parse(t);
+        if(!cardChunkOK(o,profile,parts,f)) throw new Error('stale');
+        return o;
+      }).catch(function(){return null;});
+  }));
   if(ghPat()){
-    tries.push((async function(){
-      const j=await apiGetFile(f,20000);
-      if(j&&j.json&&Array.isArray(j.json.words)&&cardChunkOK(j.json,profile,parts,f)) return j.json;
-      throw new Error('none');
-    })().catch(function(){return null;}));
+    tries.push(late(function(){
+      return apiGetFile(f,20000).then(function(j){
+        if(j&&j.json&&Array.isArray(j.json.words)&&cardChunkOK(j.json,profile,parts,f)) return j.json;
+        return null;
+      }).catch(function(){return null;});
+    }));
   }
   return await firstValid(tries);
 }
+
 /* ---------- 多存档容器合并（ky_profiles / kys_profiles / kk_profiles） ----------
  * 语义：b 中 a 没有的存档补入；同名存档比较 rev（最后修改时间），新者整体覆盖；
  *       无 rev 的旧数据保持 a 优先（向后兼容）；容器级删除用墓碑 */
@@ -8518,9 +8584,29 @@ function moveInOrder(sorted,name,dir){
   if(i<0||j<0||j>=sorted.length) return null;
   const t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t; return sorted;
 }
-window.sortWithOrder=sortWithOrder; window.moveInOrder=moveInOrder;const LS_SKIP=['ghOwner','ghPat','ghLastUpload','lastCloudCheck','_cloudBuf','cloudUrl','lastBackup','autoSync'];
+window.sortWithOrder=sortWithOrder; window.moveInOrder=moveInOrder;/* 这些是「本机自己的状态」，绝不能同步到云端 ——
+   _syncMeta / _syncDirty 记录的是"本机上次同步到哪、本机改过什么"，
+   一旦被别的设备的同名值覆盖，本机就会误判自己有没有本地改动：
+   要么认不出别的设备的新数据（拉不过来），要么以为自己在改而拿旧数据盖掉云端。
+   这就是「电脑上做好的钩子题库，平板手机上却没有」的第二个根因。
+   hub_first_run / hub_enc_fix2 / kk_pass_renamed 是各设备自己的一次性标记，同理不该跨设备。 */
+const LS_SKIP=['ghOwner','ghPat','ghLastUpload','lastCloudCheck','_cloudBuf','cloudUrl','lastBackup','autoSync',
+               '_syncMeta','_syncDirty','lastCloudPull','hub_first_run','hub_enc_fix2','kk_pass_renamed'];
 /* 第三方埋点 / 豆包运行时残留：不属于学习台数据，不要污染云端备份 */
 const LS_JUNK=/^(__tea_|x_sdk_|SLARDAR|Hm_|_clck|_ga|_gid|_uetsid|_uetvid|HMACCOUNT|sensorsdata|_q_|__cf)/i;
+/* ============================================================
+   【同步契约】以后新增任何数据/题库，照这四条做就不会同步丢：
+   1) 数据要么放进 localStorage 的普通键，要么放进 IndexedDB 的 kk_data_<存档>。
+      —— 这两处是唯一会被自动同步的地方。放别处（sessionStorage、新建的 IDB 库、
+         别的键名前缀）不会同步。
+   2) localStorage 里「本机私有状态」必须登记进 LS_SKIP，绝不能上传。
+      —— 否则会被别的设备的值覆盖，本机就会误判自己有没有本地改动，
+         表现为「拉不到别的设备的新数据」或「拿旧数据盖掉云端」。
+   3) 千万不要把同步做成「弹个提示让用户自己点」—— 用户不会点，就等于没同步。
+      云端更新一律走 cloudDoApi() → cloudAutoPull() 自动拉取合并。
+   4) 词卡类数据必须能通过 mergeCardRaw 做并集合并（带稳定 id）。
+      这样两边各自新增都不会互相覆盖，删除则靠 graves 墓碑。
+   ============================================================ */
 function collectLocalKeys(){
   const out={};
   for(let i=0;i<localStorage.length;i++){
@@ -8934,24 +9020,11 @@ async function ghUploadOnce(opts){
 })();
 /* ---------- 打开页面自动检查云端 ---------- */
 function cloudDo(){
-  const pat=ghPat();
-  if(pat){ cloudDoApi(); return; }
-  const u=cloudURL();
-  if(!u){ return; }
-  fetch(u).then(r=>r.text()).then(txt=>{
-    const m=JSON.parse(txt);
-    const exp=m.exported||'';
-    const last=localStorage.getItem('lastCloudCheck')||'';
-    if(!(exp>last)||!m.files||!m.files.length){ return; }
-    const base=u.slice(0,u.lastIndexOf('/'))+'/';
-    Promise.all(m.files.map(f=>fetch(base+f).then(r=>r.text()).then(t=>[f,t]))).then(entries=>{
-      const keys={};
-      entries.forEach(e=>{ keys[e[0].replace(/\.json$/,'')]=e[1]; });
-      localStorage.setItem('_cloudBuf',JSON.stringify({exported:exp,keys:keys}));
-      cloudApply(exp);
-    }).catch(()=>{});
-  }).catch(()=>{});
+  /* 有令牌走 API、没令牌走 CDN 竞速，两条路都统一到这里；
+     它发现云端更新会**自动拉取合并**，不再需要用户点「一键恢复」。 */
+  cloudDoApi();
 }
+
 /* ===== 多镜像云读取（CDN 竞速 + API 兜底） ===== */
 const CDN_MIRRORS=['https://cdn.jsdelivr.net/gh/','https://fastly.jsdelivr.net/gh/','https://gcore.jsdelivr.net/gh/','https://testingcf.jsdelivr.net/gh/'];
 function cloudFetchTO(url,opt,ms){
@@ -9009,12 +9082,17 @@ async function fetchManifest(){
       return {m:m,src:'cdn'};
     }).catch(function(){return null;});
   });
-  tries.push((async function(){
-    const r=await cloudFetchTO('https://raw.githubusercontent.com/'+owner+'/'+GH_REPO+'/main/manifest.json',{},10000);
-    const m=JSON.parse(await r.text());
-    if(!manifestOK(m)) throw new Error('stale');
-    return {m:m,src:'raw'};
-  })().catch(function(){return null;}));
+  /* raw 兜底延后 1.5 秒：国内基本不可达，CDN 正常时不发，免得刷一堆无意义报错 */
+  tries.push(new Promise(function(res){
+    setTimeout(function(){
+      cloudFetchTO('https://raw.githubusercontent.com/'+owner+'/'+GH_REPO+'/main/manifest.json',{},10000)
+        .then(function(r){return r.text();}).then(function(t){
+          const m=JSON.parse(t);
+          if(!manifestOK(m)) throw new Error('stale');
+          return {m:m,src:'raw'};
+        }).catch(function(){return null;}).then(res);
+    },1500);
+  }));
   if(ghPat()){
     tries.push((async function(){
       const j=await apiGetFile('manifest.json',12000);
@@ -9024,6 +9102,60 @@ async function fetchManifest(){
   }
   return await firstValid(tries);
 }
+/* 云端比本机新时：**自动**拉取并合并到本机。
+   老逻辑只弹一条「检测到云端备份 / 一键恢复」提示条，用户不点就永远不拉 ——
+   这正是「电脑上都设置好的钩子题库，平板和手机上却没有」的根因：
+   新设备/久未打开的设备只会看到一条小提示条，没人点它，数据就永远不过来。
+   本文件所有新增的题库、数据，只要写进 WORDS / localStorage，就会走这条自动通道。 */
+async function cloudAutoPull(){
+  if(window._pulling) return false;
+  const txt=localStorage.getItem('_cloudBuf');
+  if(!txt) return false;
+  let buf; try{ buf=JSON.parse(txt); }catch(e){ return false; }
+  window._pulling=true;
+  try{
+    const owner=ghOwner();
+    let m=buf.manifest;
+    /* 清单来自 CDN 时，先用 API 确认最新版本（CDN 缓存可能落后） */
+    if(!m||buf.src==='cdn'){
+      const r=await apiGetFile('manifest.json',15000);
+      if(r&&r.json)m=r.json;
+    }
+    if(!m) return false;
+    const ghBase=owner+'/'+GH_REPO+'@main/';
+    const downloadFile=async function(path){
+      const cdnP=cdnRace(ghBase+path,12000).then(function(t){ if(t){try{JSON.parse(t);return t;}catch(e){}} return null; }).catch(function(){return null;});
+      const apiP=apiGetFile(path,25000).then(function(r){return r?r.raw:null;}).catch(function(){return null;});
+      try{
+        return await Promise.any([cdnP,apiP].map(function(p){return p.then(function(v){if(v)return v;throw new Error('none');});}));
+      }catch(e){ return null; }
+    };
+    const bkText=await downloadFile(m.backup||'backup.json');
+    if(!bkText) return false;
+    let bk={}; try{ bk=JSON.parse(bkText); }catch(e){}
+    const cards={};
+    for(const c of (m.cards||[])){
+      const pieces=(await mapLimit(c.files,4,async function(f){
+        try{
+          const o=await fetchCardChunk(f,c.profile,c.parts);
+          if(!o) return null;
+          return JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]});
+        }catch(e){ return null; }
+      })).filter(Boolean);
+      /* 分块没拿全就跳过这整个存档：宁可不拉，也不写出缺词的残缺数据 */
+      if((c.files||[]).length!==pieces.length) continue;
+      let raw=null; pieces.forEach(function(p){ raw=raw?mergeCardRaw(raw,p):p; });
+      if(raw) cards[c.profile]=raw;
+    }
+    await applyCloudData({keys:bk.keys||{},cards:cards,manifest:m,meta:m.meta||{},exported:m.exported,src:'api'},{quiet:true});
+    return true;
+  }catch(e){
+    return false;
+  }finally{
+    window._pulling=false;
+  }
+}
+
 async function cloudDoApi(){
   if(window._checking){ return; }
   window._checking=true;
@@ -9035,10 +9167,13 @@ async function cloudDoApi(){
     const last=localStorage.getItem('lastCloudCheck')||'';
     if(!(exp>last))return;
     localStorage.setItem('_cloudBuf',JSON.stringify({exported:exp,manifest:m,keys:null,cards:null,src:r.src}));
-    cloudApply(exp);
+    const ok=await cloudAutoPull();
+    /* 自动拉取失败（多半是网络不通）时才退回手动提示条，让用户能重试 */
+    if(!ok) cloudApply(exp);
   }catch(e){}
   finally{ window._checking=false; }
 }
+
 function cloudApply(exp){
   window._cloudExp=exp;
   window._cloudPending=true;
@@ -9114,7 +9249,11 @@ async function cloudRestore(){
   }catch(e){ restoreProgressHide(); toast('恢复失败：'+e.message); }
 }
 /* 应用下载好的云端数据到本机 */
-async function applyCloudData(o){
+/* 应用下载好的云端数据到本机。
+   opt.quiet=true 时**不整页刷新**：只重新加载三个子台 + 重画总台视图，
+   这样同步过来新内容能立刻看到，又不会打断正在学习的人。 */
+async function applyCloudData(o,opt){
+  opt=opt||{};
   const ks=o.keys||{};
   const meta=o.meta||{};
   let sMeta={}, sDirty={};
@@ -9142,18 +9281,38 @@ async function applyCloudData(o){
     newMeta[k]={rev:cm.rev||o.exported||'',h:hash64(String(ks[k]))};
     n++;
   }
+  /* 词卡是并集合并：云端有、本机没有的词（比如别的设备新建的钩子题库）会在这里补进来 */
+  let cardsChanged=0;
   for(const profile in (o.cards||{})){
     const key='kk_data_'+profile;
     const ex=await IDB.get(key);
-    await IDB.set(key,ex?mergeCardRaw(ex,o.cards[profile]):o.cards[profile]);
+    const next=ex?mergeCardRaw(ex,o.cards[profile]):o.cards[profile];
+    if(next!==ex){ cardsChanged++; await IDB.set(key,next); }
   }
   localStorage.setItem('_syncMeta',JSON.stringify(newMeta));
   if(window._clearSyncDirty)window._clearSyncDirty();
   localStorage.setItem('lastCloudCheck',o.exported||'');
+  localStorage.setItem('lastCloudPull',new Date().toISOString());
   localStorage.setItem('_cloudBuf',JSON.stringify(o));
+  /* 关掉可能还挂着的"点此恢复"提示条 */
+  try{ const b=document.getElementById('remindBar'); if(b) b.style.display='none'; }catch(e){}
+  window._cloudPending=false;
+
+  if(opt.quiet){
+    /* 词卡有变化才重载子台，避免无谓地打断 */
+    if(cardsChanged){
+      try{ FRAMES.forEach(function(f){ try{ f.contentWindow.location.reload(); }catch(e){} }); }catch(e){}
+    }
+    try{ updateCloudDot(); }catch(e){}
+    try{ render(); }catch(e){}
+    const total=n+cardsChanged;
+    if(total>0) toast('已自动同步云端新内容（'+total+' 项'+(kept?('，保留本机较新的 '+kept+' 项'):'')+'）');
+    return;
+  }
   toast('云端数据已恢复（'+n+' 项'+(kept?('，保留本机较新的 '+kept+' 项'):'')+'），页面即将刷新');
   setTimeout(()=>location.reload(),900);
 }
+
 /* 恢复下载进度提示 */
 function restoreProgress(msg){
   const mask=document.getElementById('syncMask');
