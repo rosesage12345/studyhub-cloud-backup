@@ -7916,7 +7916,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-01.30';
+const APP_BUILD='2026-10-01.31';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -8586,7 +8586,7 @@ window.sortWithOrder=sortWithOrder; window.moveInOrder=moveInOrder;/* 这些是�
    这就是「电脑上做好的钩子题库，平板手机上却没有」的第二个根因。
    hub_first_run / hub_enc_fix2 / kk_pass_renamed 是各设备自己的一次性标记，同理不该跨设备。 */
 const LS_SKIP=['ghOwner','ghPat','ghLastUpload','lastCloudCheck','_cloudBuf','cloudUrl','lastBackup','autoSync',
-               '_syncMeta','_syncDirty','lastCloudPull','hub_first_run','hub_enc_fix2','kk_pass_renamed'];
+               '_syncMeta','_syncDirty','lastCloudPull','hub_first_run','hub_enc_fix2','kk_pass_renamed','manifestAt','manifestCache'];
 /* 第三方埋点 / 豆包运行时残留：不属于学习台数据，不要污染云端备份 */
 const LS_JUNK=/^(__tea_|x_sdk_|SLARDAR|Hm_|_clck|_ga|_gid|_uetsid|_uetvid|HMACCOUNT|sensorsdata|_q_|__cf)/i;
 /* ============================================================
@@ -9083,12 +9083,25 @@ function newestValid(promises,ms){
 }
 /* 读云端清单：API 权威优先（无令牌也可匿名读），失败才退回 CDN 镜像并取最新的一份 */
 async function fetchManifest(){
+  /* 60 秒去重：多标签页、多个触发源在同一分钟内只会真正打一次 API。
+     匿名 API 配额只有 60 次/小时，不去重的话开两个标签页就打光，
+     打光后会掉回 CDN 的旧缓存，反而更不同步 —— 所以这一步很重要。 */
+  const _mfNow=Date.now();
+  const _mfAt=parseInt(localStorage.getItem('manifestAt')||'0',10);
+  let _mfMemo=null;
+  try{ _mfMemo=JSON.parse(localStorage.getItem('manifestCache')||'null'); }catch(e){}
+  if(_mfMemo&&manifestOK(_mfMemo)&&(_mfNow-_mfAt)<60000) return {m:_mfMemo,src:'memo'};
+
   const owner=ghOwner();
   const path=owner+'/'+GH_REPO+'@main/manifest.json';
   /* 1) GitHub API：权威最新版，拿到就立刻用，不拖延迟 */
   try{
     const j=await apiGetFile('manifest.json',12000);
-    if(j&&j.json&&manifestOK(j.json)) return {m:j.json,src:'api'};
+    if(j&&j.json&&manifestOK(j.json)){
+      localStorage.setItem('manifestAt',String(Date.now()));
+      localStorage.setItem('manifestCache',JSON.stringify(j.json));
+      return {m:j.json,src:'api'};
+    }
   }catch(e){}
   /* 2) API 不可用（限流/网络）时才走 CDN：四个镜像 + raw，取 export 最新的那个 */
   const tries=CDN_MIRRORS.map(function(m){
@@ -9109,7 +9122,12 @@ async function fetchManifest(){
         }).catch(function(){return null;}).then(res);
     },1500);
   }));
-  return await newestValid(tries,3500);
+  const best=await newestValid(tries,3500);
+  if(best){
+    localStorage.setItem('manifestAt',String(Date.now()));
+    localStorage.setItem('manifestCache',JSON.stringify(best.m));
+  }
+  return best;
 }
 
 /* 本机数据是不是比云端少？少就说明本机落后，必须拉。
@@ -9141,6 +9159,9 @@ async function cloudDataBehind(m){
 /* 强制从云端拉一次：忽略所有时间戳标记，用于"我明明有数据却看不到"的情况 */
 async function forcePullFromCloud(){
   localStorage.removeItem('lastCloudCheck');
+  /* 绕过 60 秒去重缓存，保证真的去云端取一次最新的 */
+  localStorage.removeItem('manifestAt');
+  localStorage.removeItem('manifestCache');
   const r=await fetchManifest();
   if(!r){ toast('读不到云端清单：检查网络，或到「云端账号设置」看令牌'); return; }
   localStorage.setItem('_cloudBuf',JSON.stringify({exported:r.m.exported,manifest:r.m,keys:null,cards:null,src:r.src}));
@@ -9148,6 +9169,10 @@ async function forcePullFromCloud(){
   const ok=await cloudAutoPull();
   if(!ok) toast('拉取失败，请检查网络后重试');
 }
+/* 云端比本机新时：**自动**拉取并合并到本机。
+   老逻辑只弹一条「检测到云端备份 / 一键恢复」提示条，用户不点就永远不拉 ——
+   这正是「电脑上都设置好的钩子题库，平板和手机上却没有」的根因之一。
+   本文件所有新增的题库、数据，只要写进 WORDS / localStorage，就会走这条自动通道。 */
 /* 云端比本机新时：**自动**拉取并合并到本机。
    老逻辑只弹一条「检测到云端备份 / 一键恢复」提示条，用户不点就永远不拉 ——
    这正是「电脑上都设置好的钩子题库，平板和手机上却没有」的根因之一。
@@ -9179,6 +9204,7 @@ async function cloudAutoPull(){
     if(!bkText) return false;
     let bk={}; try{ bk=JSON.parse(bkText); }catch(e){}
     const cards={};
+    const skipped=[];   /* 分块没拿全的存档：整块跳过，并如实报给用户 */
     for(const c of (m.cards||[])){
       const pieces=(await mapLimit(c.files,4,async function(f){
         try{
@@ -9187,18 +9213,34 @@ async function cloudAutoPull(){
           return JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]});
         }catch(e){ return null; }
       })).filter(Boolean);
-      /* 分块没拿全就跳过这整个存档：宁可不拉，也不写出缺词的残缺数据 */
-      if((c.files||[]).length!==pieces.length) continue;
+      /* 分块没拿全就跳过这整个存档：宁可不拉，也不写出缺词的残缺数据。
+         但**必须记下来告诉用户** —— 否则就是"静默失败"：
+         程序什么都没同步，却报"已自动同步"，用户根本无从判断。 */
+      if((c.files||[]).length!==pieces.length){ skipped.push(c.profile); continue; }
       let raw=null; pieces.forEach(function(p){ raw=raw?mergeCardRaw(raw,p):p; });
       if(raw) cards[c.profile]=raw;
     }
-    await applyCloudData({keys:bk.keys||{},cards:cards,manifest:m,meta:m.meta||{},exported:m.exported,src:'api'},{quiet:true});
-    return true;
+    await applyCloudData({keys:bk.keys||{},cards:cards,manifest:m,meta:m.meta||{},exported:m.exported,src:'api'},
+                         {quiet:true,skipped:skipped});
+    return skipped.length===0;
   }catch(e){
     return false;
   }finally{
     window._pulling=false;
   }
+}
+/* 拉取没成功的醒目提示：常驻在顶部提示条上，带重试按钮。
+   绝不能用一句"已自动同步"糊过去 —— 那会让人以为数据没问题。 */
+function cloudPullWarnBanner(msg){
+  try{
+    const b=document.getElementById('remindBar');
+    if(!b) return;
+    b.style.display='flex';
+    b.innerHTML='<span class="rb-text" style="color:#b45309">⚠️ 云端数据没拉全：'+esc(msg)
+      +'　本机数据未受影响，稍后会自动重试。</span>'
+      +'<button class="rb-btn ok" onclick="forcePullFromCloud()">立即重试</button>'
+      +'<button class="rb-btn" onclick="document.getElementById(\'remindBar\').style.display=\'none\'">知道了</button>';
+  }catch(e){}
 }
 
 async function cloudDoApi(){
@@ -9217,8 +9259,10 @@ async function cloudDoApi(){
     if(!newer&&!behind)return;
     localStorage.setItem('_cloudBuf',JSON.stringify({exported:exp,manifest:m,keys:null,cards:null,src:r.src}));
     const ok=await cloudAutoPull();
-    /* 自动拉取失败（多半是网络不通）时才退回手动提示条，让用户能重试 */
-    if(!ok) cloudApply(exp);
+    /* 自动拉取失败时才退回手动提示条。
+       但如果 applyCloudData 已经给出了**具体原因**的警告（某几个存档分块没下全），
+       就不要用通用提示去覆盖它 —— 具体原因对排查重要得多。 */
+    if(!ok && !window._pullWarn) cloudApply(exp);
   }catch(e){}
   finally{ window._checking=false; }
 }
@@ -9302,8 +9346,14 @@ async function cloudRestore(quiet){
 /* 应用下载好的云端数据到本机。
    opt.quiet=true 时**不整页刷新**：只重新加载三个子台 + 重画总台视图，
    这样同步过来新内容能立刻看到，又不会打断正在学习的人。 */
+/* 应用下载好的云端数据到本机。
+   opt.quiet=true 时**不整页刷新**：只重新加载三个子台 + 重画总台视图，
+   这样同步过来新内容能立刻看到，又不会打断正在学习的人。
+   opt.skipped 列出「分块没下全、被整块跳过」的存档 —— 只要非空，
+   就**不记 lastCloudCheck**（保持"落后"状态以便继续重试），并如实告知用户。 */
 async function applyCloudData(o,opt){
   opt=opt||{};
+  const skipped=opt.skipped||[];
   const ks=o.keys||{};
   const meta=o.meta||{};
   let sMeta={}, sDirty={};
@@ -9341,13 +9391,37 @@ async function applyCloudData(o,opt){
   }
   localStorage.setItem('_syncMeta',JSON.stringify(newMeta));
   if(window._clearSyncDirty)window._clearSyncDirty();
-  localStorage.setItem('lastCloudCheck',o.exported||'');
   localStorage.setItem('lastCloudPull',new Date().toISOString());
-  localStorage.setItem('_cloudBuf',JSON.stringify(o));
-  /* 关掉可能还挂着的"点此恢复"提示条 */
-  try{ const b=document.getElementById('remindBar'); if(b) b.style.display='none'; }catch(e){}
+  /* 只缓存"清单"，绝不把云端数据本体塞进 localStorage：
+     cloudRestore 只用到 buf.manifest，其余都是重新从云端下载的。
+     存全量会占掉 2.6MB（localStorage 上限才 5MB 左右），每次同步还要同步写一遍导致手机卡顿；
+     一旦写满配额，后续所有 localStorage.setItem 都会抛异常（又被 try/catch 静默吞掉）= 数据不再保存。 */
+  localStorage.setItem('_cloudBuf',JSON.stringify({exported:o.exported,manifest:o.manifest,src:o.src||'api'}));
+  try{ const b=document.getElementById('remindBar'); if(b&&!skipped.length) b.style.display='none'; }catch(e){}
   window._cloudPending=false;
 
+  /* ===== 有存档没拉全：如实告知，并且不记 lastCloudCheck =====
+     不记时间戳 → 下次检查仍然判定为"落后" → 自动继续重试，直到拉全为止。
+     也绝不说"已自动同步" —— 那会让用户以为数据已经没问题了。 */
+  if(skipped.length){
+    if(window._syncDirtyAny===undefined)window._syncDirtyAny=0;
+    const msg='有 '+skipped.length+' 个存档的分块没下载成功（'+skipped.join('、')+'）';
+    window._pullWarn=msg;
+    if(opt.quiet){
+      if(cardsChanged){
+        try{ FRAMES.forEach(function(f){ try{ f.contentWindow.location.reload(); }catch(e){} }); }catch(e){}
+      }
+      try{ updateCloudDot(); }catch(e){}
+      try{ render(); }catch(e){}
+      cloudPullWarnBanner(msg);
+      return;
+    }
+    toast(msg+'，已中止恢复（避免写出缺词的数据）');
+    return;
+  }
+
+  window._pullWarn='';
+  localStorage.setItem('lastCloudCheck',o.exported||'');
   if(opt.quiet){
     /* 词卡有变化才重载子台，避免无谓地打断 */
     if(cardsChanged){
@@ -9356,7 +9430,11 @@ async function applyCloudData(o,opt){
     try{ updateCloudDot(); }catch(e){}
     try{ render(); }catch(e){}
     const total=n+cardsChanged;
-    if(total>0) toast('已自动同步云端新内容（'+total+' 项'+(kept?('，保留本机较新的 '+kept+' 项'):'')+'）');
+    /* 只在"这次真的带来了新东西"时提示，避免同一份数据每 2 分钟刷一次同样的提示 */
+    if(total>0 && window._lastPullToast!==o.exported){
+      window._lastPullToast=o.exported;
+      toast('已自动同步云端新内容（'+total+' 项'+(kept?('，保留本机较新的 '+kept+' 项'):'')+'）');
+    }
     return;
   }
   toast('云端数据已恢复（'+n+' 项'+(kept?('，保留本机较新的 '+kept+' 项'):'')+'），页面即将刷新');
@@ -9514,7 +9592,9 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   if(importCloudTokenFromHash()){ toast('云端账号已配置完成'); }
   await firstRunAutoRestore();
   updateCloudDot(); cloudSetupBanner(); cloudDo();
-  setInterval(()=>{ if(document.visibilityState==='visible') cloudDo(); }, 2*60*1000);
+  /* 每 5 分钟检查一次（原来 2 分钟）。匿名 API 配额 60 次/小时，
+   2 分钟一次就是 30 次/小时，开两个标签页就打光；5 分钟留足余量。 */
+setInterval(()=>{ if(document.visibilityState==='visible') cloudDo(); }, 5*60*1000);
   document.addEventListener('visibilitychange', ()=>{
     if(document.visibilityState==='visible'){ cloudDo(); }
     else if(autoSync.pending){ autoSync.flush(); }
