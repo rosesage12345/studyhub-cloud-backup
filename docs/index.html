@@ -7695,6 +7695,7 @@ async function syncOpen(){
       +'<button class="sync-big-btn primary" onclick="ghUpload()"><b>立即上传</b><span>把本机数据推到云端</span></button>'
       +'<button class="sync-big-btn" onclick="cloudCheckNow()"><b>立即检查</b><span>拉取云端最新备份</span></button>'
       +'<button class="sync-big-btn" onclick="syncSelfCheck()"><b>同步自检</b><span>看这台设备跟云端差多少</span></button>'
+      +'<button class="sync-big-btn" onclick="forcePullFromCloud()"><b>强制从云端拉取</b><span>忽略所有记录，直接以云端为准补齐本机</span></button>'
     +'</div>'
     +'<label class="sync-switch"><input type="checkbox" '+(autoOn?'checked':'')+' onchange="autoSync.set(this.checked);toast(this.checked?\'已开启自动同步\':\'已关闭自动同步\')"><span class="sw-track"><i></i></span><span class="sw-label">自动同步（数据变化约 25 秒后自动上传）</span></label>'
     +'<details class="sync-adv"'+(ghPat()?'':' open')+'><summary>云端账号设置</summary>'
@@ -7915,7 +7916,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-01.29';
+const APP_BUILD='2026-10-01.30';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -9111,6 +9112,95 @@ async function fetchManifest(){
   return await newestValid(tries,3500);
 }
 
+/* 本机数据是不是比云端少？少就说明本机落后，必须拉。
+   为什么不只看时间戳：设备一旦记下 lastCloudCheck 却没真正拉到数据
+   （旧版本只弹提示条、用户点「暂不」、或拉到一半网络断了），
+   之后 云端exported > 本机lastCloudCheck 就永远为假 —— 它会永远以为自己是最新的。
+   比对「云端记录的词数」和「本机实际词数」才是事实，与任何标记无关。 */
+async function cloudDataBehind(m){
+  try{
+    let any=false;
+    for(const c of (m.cards||[])){
+      if(typeof c.words!=='number') continue;
+      any=true;
+      const raw=await IDB.get('kk_data_'+c.profile);
+      let n=0;
+      try{ n=((JSON.parse(raw||'{}').words)||[]).length; }catch(e){}
+      if(c.words>n) return true;
+    }
+    /* 云端清单里没记词数的老清单：退回比对存档是否存在 */
+    if(!any){
+      for(const c of (m.cards||[])){
+        const raw=await IDB.get('kk_data_'+c.profile);
+        if(!raw) return true;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+/* 强制从云端拉一次：忽略所有时间戳标记，用于"我明明有数据却看不到"的情况 */
+async function forcePullFromCloud(){
+  localStorage.removeItem('lastCloudCheck');
+  const r=await fetchManifest();
+  if(!r){ toast('读不到云端清单：检查网络，或到「云端账号设置」看令牌'); return; }
+  localStorage.setItem('_cloudBuf',JSON.stringify({exported:r.m.exported,manifest:r.m,keys:null,cards:null,src:r.src}));
+  toast('正在从云端拉取（版本 '+String(r.m.exported||'').replace('T',' ').slice(0,16)+'）…');
+  const ok=await cloudAutoPull();
+  if(!ok) toast('拉取失败，请检查网络后重试');
+}
+/* 云端比本机新时：**自动**拉取并合并到本机。
+   老逻辑只弹一条「检测到云端备份 / 一键恢复」提示条，用户不点就永远不拉 ——
+   这正是「电脑上都设置好的钩子题库，平板和手机上却没有」的根因之一。
+   本文件所有新增的题库、数据，只要写进 WORDS / localStorage，就会走这条自动通道。 */
+async function cloudAutoPull(){
+  if(window._pulling) return false;
+  const txt=localStorage.getItem('_cloudBuf');
+  if(!txt) return false;
+  let buf; try{ buf=JSON.parse(txt); }catch(e){ return false; }
+  window._pulling=true;
+  try{
+    const owner=ghOwner();
+    let m=buf.manifest;
+    /* 清单来自 CDN 时，先用 API 确认最新版本（CDN 各镜像可能落后一整天） */
+    if(!m||buf.src==='cdn'){
+      const r=await apiGetFile('manifest.json',15000);
+      if(r&&r.json)m=r.json;
+    }
+    if(!m) return false;
+    const ghBase=owner+'/'+GH_REPO+'@main/';
+    const downloadFile=async function(path){
+      const cdnP=cdnRace(ghBase+path,12000).then(function(t){ if(t){try{JSON.parse(t);return t;}catch(e){}} return null; }).catch(function(){return null;});
+      const apiP=apiGetFile(path,25000).then(function(r){return r?r.raw:null;}).catch(function(){return null;});
+      try{
+        return await Promise.any([cdnP,apiP].map(function(p){return p.then(function(v){if(v)return v;throw new Error('none');});}));
+      }catch(e){ return null; }
+    };
+    const bkText=await downloadFile(m.backup||'backup.json');
+    if(!bkText) return false;
+    let bk={}; try{ bk=JSON.parse(bkText); }catch(e){}
+    const cards={};
+    for(const c of (m.cards||[])){
+      const pieces=(await mapLimit(c.files,4,async function(f){
+        try{
+          const o=await fetchCardChunk(f,c.profile,c.parts);
+          if(!o) return null;
+          return JSON.stringify({words:o.words||[],history:o.history||[],graves:o.graves||[]});
+        }catch(e){ return null; }
+      })).filter(Boolean);
+      /* 分块没拿全就跳过这整个存档：宁可不拉，也不写出缺词的残缺数据 */
+      if((c.files||[]).length!==pieces.length) continue;
+      let raw=null; pieces.forEach(function(p){ raw=raw?mergeCardRaw(raw,p):p; });
+      if(raw) cards[c.profile]=raw;
+    }
+    await applyCloudData({keys:bk.keys||{},cards:cards,manifest:m,meta:m.meta||{},exported:m.exported,src:'api'},{quiet:true});
+    return true;
+  }catch(e){
+    return false;
+  }finally{
+    window._pulling=false;
+  }
+}
+
 async function cloudDoApi(){
   if(window._checking){ return; }
   window._checking=true;
@@ -9120,7 +9210,11 @@ async function cloudDoApi(){
     const m=r.m;
     const exp=m.exported||'';
     const last=localStorage.getItem('lastCloudCheck')||'';
-    if(!(exp>last))return;
+    /* 两个条件满足任一就拉：云端时间戳更新，或本机词数比云端少。
+       后者是关键 —— 它能在"设备以为自己是最新的"时自救。 */
+    const newer=(exp>last);
+    const behind=newer?false:await cloudDataBehind(m);
+    if(!newer&&!behind)return;
     localStorage.setItem('_cloudBuf',JSON.stringify({exported:exp,manifest:m,keys:null,cards:null,src:r.src}));
     const ok=await cloudAutoPull();
     /* 自动拉取失败（多半是网络不通）时才退回手动提示条，让用户能重试 */
@@ -9139,13 +9233,14 @@ function cloudApply(exp){
     +'<button class="rb-btn" onclick="cloudDismiss()">暂不</button>';
 }
 function cloudDismiss(){
-  const exp=window._cloudExp||'';
-  if(exp){ localStorage.setItem('lastCloudCheck',exp); }
+  /* 故意不记 lastCloudCheck：点了「暂不」不等于已经同步过。
+     老代码在这里记了时间戳，于是设备会永远以为自己是新版、再也不拉 —— 
+     这正是"手机上一直没有电脑新增的钩子题库"的关键一环。 */
   window._cloudPending=false;
   const b=document.getElementById('remindBar'); if(b){ b.style.display='none'; }
   try{ const w=FRAMES[2].contentWindow; if(w&&w.ensureSeed) w.ensureSeed(); }catch(e){}
 }
-async function cloudRestore(){
+async function cloudRestore(quiet){
   const txt=localStorage.getItem('_cloudBuf');
   if(!txt){ toast('没有可用备份，先点「立即检查」'); return; }
   let buf; try{ buf=JSON.parse(txt); }catch(e){ toast('备份信息损坏'); return; }
@@ -9200,7 +9295,7 @@ async function cloudRestore(){
     }
     buf.keys=keys;buf.cards=cards;buf.manifest=m;buf.meta=m.meta||{};buf.src='api';
     restoreProgressHide();
-    await applyCloudData(buf);
+    await applyCloudData(buf,{quiet:!!quiet});
   }catch(e){ restoreProgressHide(); toast('恢复失败：'+e.message); }
 }
 /* 应用下载好的云端数据到本机 */
@@ -9361,7 +9456,7 @@ async function firstRunAutoRestore(){
     if(!r||!r.m||!((r.m.cards||[]).length)){ localStorage.setItem('hub_first_run','1'); return; }
     localStorage.setItem('_cloudBuf',JSON.stringify({exported:r.m.exported,manifest:r.m,keys:null,cards:null,src:r.src}));
     toast('首次使用：正在从云端恢复数据…');
-    await cloudRestore();   /* 内部会显示进度、写回数据并刷新页面 */
+    await cloudRestore(true);   /* 安静模式：写入后只重载子台，不整页刷新 */
   }catch(e){}
 }
 
