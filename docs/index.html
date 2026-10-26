@@ -4660,7 +4660,7 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .worditem.batch .t{flex:1}
 
 .worditem{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px}
-.worditem .w{font-weight:700;color:var(--brand-ink);min-width:120px;word-break:break-all}
+.worditem .w{font-weight:700;color:var(--brand-ink);min-width:120px;word-break:break-all;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .worditem .t{flex:1;color:var(--text);font-size:14px;min-width:0}
 .worditem .p{font-size:12px;color:var(--text2);flex:none;max-width:110px}
 .worditem .ops{display:flex;gap:6px;flex:none}
@@ -4670,6 +4670,14 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .worditem.mastered{opacity:.62}
 .worditem.mastered .w{text-decoration:line-through}
 .wdone{flex:none;font-size:11px;font-weight:700;color:var(--ok);background:var(--ok-soft);border-radius:999px;padding:2px 8px}
+@media (max-width:560px){
+  .worditem{flex-wrap:wrap;row-gap:6px}
+  .worditem .w{flex:1 1 100%;min-width:0}
+  .worditem .t{flex:1 1 auto}
+  .worditem .p{flex:0 0 auto}
+  .worditem .ops{flex:0 0 auto;margin-left:auto}
+  .worditem .ops button{padding:4px 9px}
+}
 
 /* ========== 统计 ========== */
 .stat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
@@ -5230,8 +5238,7 @@ function wordItem(w){
   }
   return '&lt;div class=&quot;worditem'+(w.mastered?' mastered':'')+'&quot;&gt;&lt;div class=&quot;w&quot;&gt;'
     +'&lt;button class=&quot;spk mini&quot; onclick=&quot;event.stopPropagation();speakWord(\''+escAttr(w.w)+'\')&quot; title=&quot;朗读&quot;&gt;'+SPK_SVG+'&lt;/button&gt;'
-    +esc(w.w)+'&lt;/div&gt;'
-    +(w.mastered?'&lt;span class=&quot;wdone&quot;&gt;已熟&lt;/span&gt;':'')+'&lt;div class=&quot;t&quot;&gt;'+esc(w.trans||'')+'&lt;/div&gt;&lt;div class=&quot;p&quot;&gt;'+esc(w.pos||'')+'&lt;/div&gt;'
+    +esc(w.w)+(w.mastered?'&lt;span class=&quot;wdone&quot;&gt;已熟&lt;/span&gt;':'')+'&lt;/div&gt;'+'&lt;div class=&quot;t&quot;&gt;'+esc(w.trans||'')+'&lt;/div&gt;&lt;div class=&quot;p&quot;&gt;'+esc(w.pos||'')+'&lt;/div&gt;'
     +'&lt;div class=&quot;ops&quot;&gt;&lt;button onclick=&quot;wordMoveOne(\''+w.id+'\')&quot;&gt;移动到&lt;/button&gt;&lt;button onclick=&quot;wordEdit(\''+w.id+'\')&quot;&gt;编辑&lt;/button&gt;'
     +'&lt;button class=&quot;danger&quot; onclick=&quot;wordDel(\''+w.id+'\')&quot;&gt;删除&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
 }
@@ -8429,7 +8436,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-26.36';
+const APP_BUILD='2026-10-26.37';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
