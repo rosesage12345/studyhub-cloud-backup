@@ -476,7 +476,7 @@ table.ebh tr.due td.cycle-due{background:#f59e0b !important;color:#fff;font-weig
 .sch-segs{display:flex;flex-wrap:wrap;gap:6px;padding:0 13px 12px}
 .sch-segs b{font-size:12px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:3px 9px}
 .sch-segs .none{font-size:12px;color:var(--text2)}
-.sch-sheet{position:fixed;inset:0;z-index:80;display:none}
+.sch-sheet{position:absolute;inset:0;z-index:80;display:none}
 .sch-sheet.open{display:block}
 .ss-mask{position:absolute;inset:0;background:rgba(10,30,26,.42)}
 .ss-body{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:20px 20px 0 0;padding:8px 0 max(16px,env(safe-area-inset-bottom));max-height:76vh;overflow-y:auto;box-shadow:0 -8px 30px rgba(10,40,34,.25);animation:ssUp .22s ease}
@@ -4667,8 +4667,9 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .worditem .ops button{font-size:12px;padding:4px 10px;min-height:32px;border-radius:8px;background:var(--bg);border:1px solid var(--line);color:var(--text2);cursor:pointer}
 .worditem .ops button:hover{border-color:var(--brand2);color:var(--brand)}
 .worditem .ops button.danger:hover{border-color:var(--bad);color:var(--bad)}
-.worditem.mastered{opacity:.55}
+.worditem.mastered{opacity:.62}
 .worditem.mastered .w{text-decoration:line-through}
+.wdone{flex:none;font-size:11px;font-weight:700;color:var(--ok);background:var(--ok-soft);border-radius:999px;padding:2px 8px}
 
 /* ========== 统计 ========== */
 .stat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
@@ -5230,7 +5231,7 @@ function wordItem(w){
   return '&lt;div class=&quot;worditem'+(w.mastered?' mastered':'')+'&quot;&gt;&lt;div class=&quot;w&quot;&gt;'
     +'&lt;button class=&quot;spk mini&quot; onclick=&quot;event.stopPropagation();speakWord(\''+escAttr(w.w)+'\')&quot; title=&quot;朗读&quot;&gt;'+SPK_SVG+'&lt;/button&gt;'
     +esc(w.w)+'&lt;/div&gt;'
-    +'&lt;div class=&quot;t&quot;&gt;'+esc(w.trans||'')+'&lt;/div&gt;&lt;div class=&quot;p&quot;&gt;'+esc(w.pos||'')+'&lt;/div&gt;'
+    +(w.mastered?'&lt;span class=&quot;wdone&quot;&gt;已熟&lt;/span&gt;':'')+'&lt;div class=&quot;t&quot;&gt;'+esc(w.trans||'')+'&lt;/div&gt;&lt;div class=&quot;p&quot;&gt;'+esc(w.pos||'')+'&lt;/div&gt;'
     +'&lt;div class=&quot;ops&quot;&gt;&lt;button onclick=&quot;wordMoveOne(\''+w.id+'\')&quot;&gt;移动到&lt;/button&gt;&lt;button onclick=&quot;wordEdit(\''+w.id+'\')&quot;&gt;编辑&lt;/button&gt;'
     +'&lt;button class=&quot;danger&quot; onclick=&quot;wordDel(\''+w.id+'\')&quot;&gt;删除&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
 }
@@ -7062,6 +7063,7 @@ function hubUid(){ return 'u'+Date.now().toString(36)+Math.random().toString(36)
 function hubIdentity(){ try{ return localStorage.getItem('hub_identity')==='dog'?'dog':'master'; }catch(e){ return 'master'; } }
 let _curTool=null;
 function showTool(){
+  if(typeof schSheetClose==='function') schSheetClose();
   document.getElementById('homeView').style.display='none';
   document.getElementById('appView').style.display='none';
   const sv=document.getElementById('statView'); if(sv) sv.style.display='none';
@@ -8061,7 +8063,10 @@ function schCourse(key,isHer,sec,loc){
 }
 function schSheet(title,rows){
   let el=document.getElementById('schSheet');
-  if(!el){ el=document.createElement('div'); el.id='schSheet'; el.className='sch-sheet'; document.body.appendChild(el); }
+  if(!el){ el=document.createElement('div'); el.id='schSheet'; el.className='sch-sheet';
+    /* 挂进工具视图而不是 body：这样切走/回总台时它会随工具视图一起隐藏，
+       否则抽屉会一直浮在屏幕上挡住别的界面（曾经就是这个问题）。 */
+    var host=document.getElementById('toolView')||document.body; host.appendChild(el); }
   el.innerHTML='<div class="ss-mask" onclick="schSheetClose()"></div><div class="ss-body"><div class="ss-grab"></div>'
     +'<div class="ss-hd"><h3>'+esc(title)+'</h3><button class="ss-x" onclick="schSheetClose()">×</button></div>'
     +'<div class="ss-list">'+rows+'</div></div>';
@@ -8160,12 +8165,16 @@ function schRender(){
 }
 const FRAMES=[$('frameEn'),$('frameQuiz'),$('frameCard')];
 function go(i){
+  if(typeof schSheetClose==='function') schSheetClose();
   FRAMES.forEach((f,idx)=>{f.style.display=idx===i?'':'none';});
   $('appView').style.display='block';
   $('homeView').style.display='none';
+  var tv=document.getElementById('toolView'); if(tv) tv.style.display='none';
+  var sv=document.getElementById('statView'); if(sv) sv.style.display='none';
   if(i===2){ try{ const w=FRAMES[2].contentWindow; if(w&&w.ensureSeed) w.ensureSeed(); }catch(e){} }
 }
 function goHub(){
+  if(typeof schSheetClose==='function') schSheetClose();
   $('appView').style.display='none';
   $('toolView').style.display='none';
   const sv=document.getElementById('statView'); if(sv) sv.style.display='none';
@@ -8420,7 +8429,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-26.35';
+const APP_BUILD='2026-10-26.36';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
