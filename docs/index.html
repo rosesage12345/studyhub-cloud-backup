@@ -436,6 +436,9 @@ table.ebh tr.due td.cycle-due{background:#f59e0b !important;color:#fff;font-weig
 .cd-box .cd-n{font-size:36px;font-weight:800;line-height:1.05}
 .cd-box .cd-l{font-size:12px;opacity:.95;margin-top:2px}
 @media(max-width:560px){.tb-left{min-width:100%}.cd-box{flex:1;min-width:100%;flex-direction:row;align-items:baseline;gap:10px;justify-content:center}.cd-box .cd-n{font-size:30px}}
+/* 双人课表：iframe isolation */
+.sch-wrap{position:relative;height:100%;margin:-18px}
+.sch-frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#f2f4f8}
 </style>
 </head>
 <body>
@@ -4704,6 +4707,33 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--teal,#0d9488);cur
 .pi-opt input{margin-top:3px;flex:none}
 
 .worditem .ops button{min-height:32px;padding:0 12px;border-radius:8px}
+
+/* ===== 挑词 / 提取 / 后加入隔断 / 底部卡片尺 ===== */
+.pk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.pk-box{border:1px solid var(--line);border-radius:12px;background:var(--card);max-height:50vh;overflow-y:auto;margin-bottom:12px}
+.pk-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.pk-row:last-child{border-bottom:0}
+.pk-row.on{background:var(--brand-soft)}
+.pk-row input{width:19px;height:19px;flex:none}
+.pk-w{font-weight:800;min-width:86px}
+.pk-t{color:var(--text2);font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk-b{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--bad-soft);color:var(--bad);flex:none}
+.pk-b.ok{background:var(--ok-soft);color:var(--ok)}
+.pk-b.apd{background:var(--gold-soft);color:var(--gold)}
+.pk-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.pt-strip{margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)}
+.ps-hint{font-size:12px;color:var(--text2);margin-bottom:6px;opacity:.8}
+.ps-track{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
+.ps-track::-webkit-scrollbar{display:none}
+.ps-i{flex:0 0 auto;min-width:32px;height:30px;line-height:30px;text-align:center;border-radius:9px;font-size:12px;font-weight:700;background:var(--line);color:var(--text2);cursor:pointer;font-style:normal;transition:all .15s}
+.ps-i.ok{background:var(--ok-soft);color:var(--ok)}
+.ps-i.no{background:var(--bad-soft);color:var(--bad)}
+.ps-i.cur{background:var(--brand);color:#fff;transform:translateY(-2px);box-shadow:0 3px 8px rgba(13,148,136,.3)}
+.ps-i.gapmark{box-shadow:inset 3px 0 0 var(--gold)}
+.ps-now{font-size:12px;color:var(--text2);text-align:center}
+.pt-gap{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--gold);font-size:12px;font-weight:700}
+.pt-gap::before,.pt-gap::after{content:'';flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--gold) 0 5px,transparent 5px 10px)}
+.pt-apd{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--gold-soft);color:var(--gold);margin-left:8px}
 &lt;/style&gt;
 &lt;/head&gt;
 &lt;body class=&quot;&quot;&gt;
@@ -5452,8 +5482,8 @@ let passState={date:'',queue:[],idx:0,shuffle:false,open:{},results:{}};
 
 function passPacks(){
   const m={};
-  WORDS.forEach(function(w){ if(isPassLib(w.lib)){ if(!m[w.lib])m[w.lib]={n:0,ok:0}; m[w.lib].n++; if(w.mastered)m[w.lib].ok++; } });
-  return Object.keys(m).map(function(l){return {lib:l,date:passDateOf(l),n:m[l].n,ok:m[l].ok};})
+  WORDS.forEach(function(w){ if(isPassLib(w.lib)){ if(!m[w.lib])m[w.lib]={n:0,ok:0,apd:0}; m[w.lib].n++; if(w.mastered)m[w.lib].ok++; if(w.apd)m[w.lib].apd++; } });
+  return Object.keys(m).map(function(l){return {lib:l,date:passDateOf(l),n:m[l].n,ok:m[l].ok,apdN:m[l].apd};})
     .sort(function(a,b){return a.date&lt;b.date?1:(a.date&gt;b.date?-1:0);});
 }
 function passActive(){
@@ -5525,10 +5555,12 @@ function renderPass(){
     const pct=p.n?Math.round(p.ok/p.n*100):0;
     return '&lt;div class=&quot;pass-pack&quot; onclick=&quot;passStart(\''+escAttr(p.date)+'\')&quot;&gt;'
       +'&lt;div class=&quot;pp-top&quot;&gt;&lt;span class=&quot;pp-date&quot;&gt;'+esc(p.date)+'&lt;em class=&quot;pp-wd&quot;&gt;'+passWeekday(p.date)+'&lt;/em&gt;&lt;/span&gt;'
-      +'&lt;span class=&quot;pp-n&quot;&gt;'+p.n+' 词 · 已熟 '+p.ok+'&lt;/span&gt;'
+      +'&lt;span class=&quot;pp-n&quot;&gt;'+p.n+' 词 · 已熟 '+p.ok+(p.apdN?(' · 后加入 '+p.apdN):'')+'&lt;/span&gt;'
       +'&lt;span class=&quot;pp-ops&quot;&gt;'
       +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passStart(\''+escAttr(p.date)+'\')&quot;&gt;开始过关&lt;/button&gt;'
       +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passExport(\''+escAttr(p.date)+'\')&quot;&gt;导出&lt;/button&gt;'
+      +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passAppend(\''+escAttr(p.date)+'\')&quot;&gt;＋追加&lt;/button&gt;'
+      +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passPickOpen(\''+escAttr(p.date)+'\')&quot;&gt;挑词&lt;/button&gt;'
       +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passRename(\''+escAttr(p.date)+'\')&quot;&gt;改日期&lt;/button&gt;'
       +'&lt;button class=&quot;btn small danger&quot; onclick=&quot;event.stopPropagation();passDelete(\''+escAttr(p.date)+'\')&quot;&gt;删除&lt;/button&gt;'
       +'&lt;/span&gt;&lt;/div&gt;'
@@ -5636,9 +5668,12 @@ function backfillHooks(items){
   });
   return n;
 }
-function openPassImport(){
-  const html='&lt;h3&gt;导入钩子文本&lt;/h3&gt;'
-    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;卡包日期（年月日）&lt;/label&gt;&lt;input type=&quot;date&quot; id=&quot;piDate&quot; value=&quot;'+todayStr()+'&quot;&gt;&lt;/div&gt;'
+let passAppendMode='';
+function openPassImport(appendDate){
+  passAppendMode=appendDate||'';
+  const html='&lt;h3&gt;'+(appendDate?('追加导入到「'+appendDate+'」卡包'):'导入钩子文本')+'&lt;/h3&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;卡包日期（年月日）&lt;/label&gt;&lt;input type=&quot;date&quot; id=&quot;piDate&quot; value=&quot;'+(appendDate||todayStr())+'&quot;'+(appendDate?' disabled':'')+'&gt;&lt;/div&gt;'
+    +(appendDate?'&lt;p class=&quot;muted&quot; style=&quot;font-size:12px&quot;&gt;追加进来的词会标上「后加入」，和原有的词用一道虚线隔开。&lt;/p&gt;':'')
     +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;粘贴 AI 生成的钩子文本&lt;/label&gt;&lt;textarea id=&quot;piText&quot; style=&quot;min-height:220px&quot; placeholder=&quot;把 AI 生成的整段钩子文本粘贴到这里…&quot;&gt;&lt;/textarea&gt;&lt;/div&gt;'
     +'&lt;label class=&quot;pi-opt&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;piBack&quot; checked&gt; 同时把钩子写进同名词库里的词条（&lt;b&gt;只填空缺，不覆盖已有内容&lt;/b&gt;）&lt;/label&gt;'
     +'&lt;label class=&quot;pi-opt&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;piMove&quot; checked&gt; 把同名的「不会词库」原词&lt;b&gt;移到这里&lt;/b&gt;（不再两边各留一份，学习进度会保留）&lt;/label&gt;'
@@ -5694,16 +5729,18 @@ function openPassImport(){
         if(p.ext)src.ext=p.ext;
         if(p.fun)src.note=p.fun;
         src.next=todayStr();src.ts=todayStr();
+        if(passAppendMode)src.apd=1;
         moved++;
         return;
       }
       /* 3) 全新词 → 新建 */
-      WORDS.push({id:uid(),w:p.w,ipa:p.ipa,trans:p.trans,hook:p.hook,sample:p.mem,ex:p.ex,ext:p.ext,note:p.fun,lib:lib,mastered:false,stage:0,wrong:0,next:'',ts:''});
+      WORDS.push({id:uid(),w:p.w,ipa:p.ipa,trans:p.trans,hook:p.hook,sample:p.mem,ex:p.ex,ext:p.ext,note:p.fun,lib:lib,mastered:false,stage:0,wrong:0,next:'',ts:'',apd:passAppendMode?1:0});
       add++;
     });
     let bf=0;
     if($('piBack')&amp;&amp;$('piBack').checked) bf=backfillHooks(parsed.items);
     save();renderPass();closeModal();
+    passAppendMode='';
     toast('已生成 '+date+' 背诵过关：新增 '+add+' 词'+(moved?('、从不会词库移入 '+moved+' 词'):'')+(upd?('、补全 '+upd+' 词'):'')+(bf?('，回填 '+bf+' 个词条'):''));
   });
 }
@@ -5711,10 +5748,135 @@ function openPassImport(){
 /* ---------- 训练 ---------- */
 function passStart(date){
   const lib=PASSPREFIX+date;
-  const queue=WORDS.filter(function(w){return w.lib===lib;});
-  passState={date:date,queue:queue,idx:0,shuffle:false,open:{},results:{}};
+  const all=WORDS.filter(function(w){return w.lib===lib;});
+  const orig=all.filter(function(w){return !w.apd;});
+  const apd=all.filter(function(w){return !!w.apd;});
+  passState={date:date,queue:orig.concat(apd),idx:0,shuffle:false,open:{},results:{},gap:apd.length?orig.length:0,origN:orig.length,apdN:apd.length};
   renderPassTrain();
 }
+function passJump(i){
+  const q=passState.queue; if(!q.length) return;
+  passState.idx=Math.max(0,Math.min(q.length-1,i));
+  passState.open={};
+  renderPassTrain();
+  try{ const el=document.querySelector('.ps-i.cur'); if(el&amp;&amp;el.scrollIntoView) el.scrollIntoView({inline:'center',block:'nearest'}); }catch(e){}
+}
+/* ===== 挑词 / 提取 =====
+   从某个日期的卡包里挑出不熟的词（可单个、可批量），复制或迁移到别的日期卡包。 */
+let passPick={date:'',sel:{},filter:'wrong'};
+function passPickOpen(date,filter){ passPick={date:date,sel:{},filter:filter||'wrong'}; renderPassPick(); }
+function passPickWords(){
+  const lib=PASSPREFIX+passPick.date;
+  let ws=WORDS.filter(function(w){return w.lib===lib;});
+  const f=passPick.filter;
+  if(f==='wrong') ws=ws.filter(function(w){return !w.mastered;});
+  else if(f==='apd') ws=ws.filter(function(w){return !!w.apd;});
+  else if(f==='ok') ws=ws.filter(function(w){return w.mastered;});
+  return ws;
+}
+function passPickCount(){ let n=0; Object.keys(passPick.sel).forEach(function(k){ if(passPick.sel[k])n++; }); return n; }
+function passPickToggle(id){ passPick.sel[id]=passPick.sel[id]?0:1; renderPassPick(); }
+function passPickAll(on){
+  if(on){ passPickWords().forEach(function(w){ passPick.sel[w.id]=1; }); } else { passPick.sel={}; }
+  renderPassPick();
+}
+function passPickFilter(f){ passPick.filter=f; renderPassPick(); }
+function passPickOne(id){ passPick.sel={}; passPick.sel[id]=1; renderPassPick(); passExtractModal(); }
+function renderPassPick(){
+  const box=$('passBox');
+  const ws=passPickWords();
+  const all=WORDS.filter(function(w){return w.lib===PASSPREFIX+passPick.date;});
+  const n=passPickCount();
+  const f=passPick.filter;
+  let h='&lt;div class=&quot;pass-train&quot;&gt;&lt;div class=&quot;pt-bar&quot;&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;renderPass()&quot;&gt;← 返回卡包&lt;/button&gt;'
+    +'&lt;span class=&quot;pt-x&quot;&gt;'+esc(passPick.date)+' 挑词&lt;/span&gt;&lt;/div&gt;';
+  h+='&lt;div class=&quot;pass-hint&quot;&gt;挑出不熟的词：&lt;b&gt;单个提取&lt;/b&gt;点每行右边的按钮，&lt;b&gt;批量提取&lt;/b&gt;先勾选再点底部按钮。默认&lt;b&gt;复制&lt;/b&gt;一份到目标卡包，原卡包不动；勾上「同时移出原卡包」就变成迁移。&lt;/div&gt;';
+  h+='&lt;div class=&quot;pk-bar&quot;&gt;&lt;span class=&quot;pf-lb&quot;&gt;看哪些&lt;/span&gt;'
+    +'&lt;button class=&quot;pf-chip'+(f==='wrong'?' on':'')+'&quot; onclick=&quot;passPickFilter(\'wrong\')&quot;&gt;还不熟&lt;/button&gt;'
+    +'&lt;button class=&quot;pf-chip'+(f==='all'?' on':'')+'&quot; onclick=&quot;passPickFilter(\'all\')&quot;&gt;全部&lt;/button&gt;'
+    +'&lt;button class=&quot;pf-chip'+(f==='apd'?' on':'')+'&quot; onclick=&quot;passPickFilter(\'apd\')&quot;&gt;后加入&lt;/button&gt;'
+    +'&lt;button class=&quot;pf-chip'+(f==='ok'?' on':'')+'&quot; onclick=&quot;passPickFilter(\'ok\')&quot;&gt;已熟&lt;/button&gt;'
+    +'&lt;span class=&quot;pf-n&quot;&gt;'+ws.length+' / '+all.length+' 词&lt;/span&gt;'
+    +'&lt;span style=&quot;flex:1&quot;&gt;&lt;/span&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;passPickAll(true)&quot;&gt;全选&lt;/button&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;passPickAll(false)&quot;&gt;清空&lt;/button&gt;&lt;/div&gt;';
+  if(!ws.length){ h+='&lt;div class=&quot;pt-empty&quot;&gt;这个筛选下没有词，换一个看看。&lt;/div&gt;'; }
+  else {
+    h+='&lt;div class=&quot;pk-box&quot;&gt;'+ws.map(function(w){
+      const on=passPick.sel[w.id]?' on':'';
+      const tag=w.mastered?'&lt;span class=&quot;pk-b ok&quot;&gt;已熟&lt;/span&gt;':(w.wrong?('&lt;span class=&quot;pk-b&quot;&gt;错 '+w.wrong+' 次&lt;/span&gt;'):'&lt;span class=&quot;pk-b&quot;&gt;没做过&lt;/span&gt;');
+      const apd=w.apd?'&lt;span class=&quot;pk-b apd&quot;&gt;后加入&lt;/span&gt;':'';
+      return '&lt;div class=&quot;pk-row'+on+'&quot; onclick=&quot;passPickToggle(\''+w.id+'\')&quot;&gt;'
+        +'&lt;input type=&quot;checkbox&quot;'+(on?' checked':'')+' onclick=&quot;event.stopPropagation();passPickToggle(\''+w.id+'\')&quot;&gt;'
+        +'&lt;span class=&quot;pk-w&quot;&gt;'+esc(w.w)+'&lt;/span&gt;'
+        +'&lt;span class=&quot;pk-t&quot;&gt;'+esc(w.trans||'—')+'&lt;/span&gt;'+tag+apd
+        +'&lt;button class=&quot;btn small&quot; onclick=&quot;event.stopPropagation();passPickOne(\''+w.id+'\')&quot;&gt;提取&lt;/button&gt;'
+        +'&lt;/div&gt;';
+    }).join('')+'&lt;/div&gt;';
+  }
+  h+='&lt;div class=&quot;pk-foot&quot;&gt;'
+    +'&lt;button class=&quot;btn primary&quot;'+(n?'':' disabled')+' onclick=&quot;passExtractModal()&quot;&gt;批量提取（已选 '+n+' 词）&lt;/button&gt;'
+    +'&lt;button class=&quot;btn&quot; onclick=&quot;renderPass()&quot;&gt;返回&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
+  box.innerHTML=h;
+}
+function passExtractModal(){
+  const n=passPickCount();
+  if(!n){ toast('先选几个词'); return; }
+  const packs=passPacks().filter(function(p){return p.date!==passPick.date;});
+  const html='&lt;h3&gt;提取到别的卡包&lt;/h3&gt;'
+    +'&lt;p class=&quot;muted&quot;&gt;已选 &lt;b&gt;'+n+'&lt;/b&gt; 个词，来自「'+esc(passPick.date)+'」卡包。&lt;/p&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;label&gt;目标卡包&lt;/label&gt;&lt;select id=&quot;pkMode&quot;&gt;'
+    +'&lt;option value=&quot;__new__&quot;&gt;＋ 新建一个日期卡包&lt;/option&gt;'
+    +packs.map(function(p){return '&lt;option value=&quot;'+escAttr(p.date)+'&quot;&gt;'+esc(p.date)+'（'+p.n+' 词）&lt;/option&gt;';}).join('')
+    +'&lt;/select&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot; id=&quot;pkDateWrap&quot;&gt;&lt;label&gt;新卡包日期&lt;/label&gt;&lt;input type=&quot;date&quot; id=&quot;pkDate&quot; value=&quot;'+todayStr()+'&quot;&gt;&lt;/div&gt;'
+    +'&lt;label class=&quot;pi-opt&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;pkRemove&quot;&gt; 同时把选中的词&lt;b&gt;移出原卡包&lt;/b&gt;（不勾就是复制一份）&lt;/label&gt;'
+    +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; id=&quot;pkOk&quot;&gt;确定提取&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;';
+  openModal(html);
+  const sync=function(){ const w=$('pkDateWrap'); if(w) w.style.display=($('pkMode').value==='__new__')?'':'none'; };
+  $('pkMode').addEventListener('change',sync); sync();
+  $('pkOk').addEventListener('click',function(){
+    const mode=$('pkMode').value;
+    const tgtDate=(mode==='__new__')?(($('pkDate')&amp;&amp;$('pkDate').value)||todayStr()):mode;
+    const remove=!!($('pkRemove')&amp;&amp;$('pkRemove').checked);
+    const tgt=PASSPREFIX+tgtDate;
+    if(tgt===PASSPREFIX+passPick.date){ toast('目标就是原卡包'); return; }
+    let n2=0;
+    Object.keys(passPick.sel).forEach(function(id){
+      if(!passPick.sel[id]) return;
+      const w=WORDS.find(function(x){return x.id===id;});
+      if(!w) return;
+      const dup=WORDS.find(function(x){return x.lib===tgt&amp;&amp;String(x.w).toLowerCase()===String(w.w).toLowerCase();});
+      if(remove){
+        if(dup){ const gi=WORDS.indexOf(w); if(gi&gt;=0) WORDS.splice(gi,1); if(!Array.isArray(GRAVES))GRAVES=[]; GRAVES.push({id:w.id,ts:todayStr()}); }
+        else { w.lib=tgt; w.apd=1; w.ts=todayStr(); }
+      } else {
+        if(dup) return;
+        const cp=JSON.parse(JSON.stringify(w));
+        cp.id=uid(); cp.lib=tgt; cp.apd=1; cp.mastered=false; cp.wrong=0; cp.stage=0; cp.ts=todayStr();
+        delete cp.demo;
+        WORDS.push(cp);
+      }
+      n2++;
+    });
+    save(); closeModal();
+    toast('已把 '+n2+' 个词'+(remove?'移入':'复制到')+'「'+tgtDate+'」');
+    renderPassPick();
+  });
+}
+function passAppend(date){
+  const html='&lt;h3&gt;往「'+esc(date)+'」卡包追加内容&lt;/h3&gt;'
+    +'&lt;p class=&quot;muted&quot;&gt;追加进来的词会标上「后加入」，在过关界面里和原有的词用一道虚线隔开，一眼分得清。&lt;/p&gt;'
+    +'&lt;div class=&quot;btn-row&quot; style=&quot;flex-direction:column;align-items:stretch;gap:8px&quot;&gt;'
+    +'&lt;button class=&quot;btn primary&quot; id=&quot;paText&quot;&gt;粘贴钩子文本，追加到这个卡包&lt;/button&gt;'
+    +'&lt;button class=&quot;btn&quot; id=&quot;paPick&quot;&gt;挑出不熟的词，提取到别的卡包&lt;/button&gt;'
+    +'&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;';
+  openModal(html);
+  $('paText').addEventListener('click',function(){ closeModal(); openPassImport(date); });
+  $('paPick').addEventListener('click',function(){ closeModal(); passPickOpen(date,'all'); });
+}
+
 function passShuffleQueue(){
   const q=passState.queue.slice();
   for(let i=q.length-1;i&gt;0;i--){const j=Math.floor(Math.random()*(i+1));const t=q[i];q[i]=q[j];q[j]=t;}
@@ -5811,17 +5973,22 @@ function renderPassTrain(){
     return;
   }
   const w=queue[st.idx];
+  /* 板块顺序：谐音 → 记忆句 → 释义 → 例句 是最关键的四块（先回忆这两句，
+     再用释义和例句核对），音标/词根/趣味句放在后面当补充。 */
   const secs=[
     {key:'hook',tag:'谐音',body:w.hook},
     {key:'mem',tag:'记忆句',body:w.sample},
-    {key:'ipa',tag:'音标',body:w.ipa},
-    {key:'trans',tag:'词性释义',body:w.trans},
+    {key:'trans',tag:'释义',body:w.trans},
     {key:'ex',tag:'例句',body:w.ex},
+    {key:'ipa',tag:'音标',body:w.ipa},
     {key:'ext',tag:'词根/派生',body:w.ext},
     {key:'fun',tag:'趣味句',body:w.note}
   ];
   const openKey=w.id;
   const graded=st.results[w.id];
+  /* 后加入的卡在这里插一道隔断，和原有的卡分开 */
+  const showGap=(st.gap&amp;&amp;st.idx===st.gap&amp;&amp;st.gap&lt;queue.length);
+  const gapHtml=showGap?('&lt;div class=&quot;pt-gap&quot;&gt;以下为后加入的卡（共 '+(queue.length-st.gap)+' 张）&lt;/div&gt;'):'';
   let h='&lt;div class=&quot;pass-train&quot;&gt;';
   h+='&lt;div class=&quot;pt-bar&quot;&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;passBack()&quot;&gt;← 返回&lt;/button&gt;'
@@ -5830,9 +5997,11 @@ function renderPassTrain(){
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;passOpenAll()&quot;&gt;展开全部&lt;/button&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;passToggleShuffle()&quot;&gt;'+(st.shuffle?'乱序 ✓':'正序')+'&lt;/button&gt;'
     +'&lt;/div&gt;';
+  h+=gapHtml;
   h+='&lt;div class=&quot;pt-word&quot;&gt;&lt;div class=&quot;pw&quot;&gt;'+esc(w.w)+'&lt;/div&gt;'
     +'&lt;button class=&quot;spk&quot; onclick=&quot;speakWord(\''+escAttr(w.w)+'\')&quot;&gt;朗读单词&lt;/button&gt;'
     +(w.mastered?'&lt;span class=&quot;pt-badge ok&quot;&gt;已熟&lt;/span&gt;':(w.wrong?('&lt;span class=&quot;pt-badge no&quot;&gt;错 '+w.wrong+' 次&lt;/span&gt;'):''))
+    +(w.apd?'&lt;span class=&quot;pt-apd&quot;&gt;后加入&lt;/span&gt;':'')
     +'&lt;/div&gt;';
   h+='&lt;div class=&quot;pt-secs&quot;&gt;'+secs.map(function(s){
     if(!s.body)return '';
@@ -5849,6 +6018,15 @@ function renderPassTrain(){
     +'&lt;/div&gt;';
   h+='&lt;div class=&quot;pt-nav&quot;&gt;&lt;button class=&quot;btn&quot; onclick=&quot;passPrev()&quot;&gt;← 上一张&lt;/button&gt;'
     +'&lt;button class=&quot;btn primary&quot; onclick=&quot;passNext()&quot;&gt;下一张 →&lt;/button&gt;&lt;/div&gt;';
+  /* 底部「卡片尺」：一眼看到整体进度，点哪张跳哪张 —— 手机上不用再滚回顶部确认第几张 */
+  h+='&lt;div class=&quot;pt-strip&quot;&gt;&lt;div class=&quot;ps-hint&quot;&gt;卡片尺 · 点一下直接跳到那一张&lt;/div&gt;&lt;div class=&quot;ps-track&quot;&gt;';
+  h+=queue.map(function(x,i){
+    const r=st.results[x.id];
+    const isGap=(st.gap&amp;&amp;i===st.gap);
+    const cls='ps-i'+(i===st.idx?' cur':(r==='ok'?' ok':(r==='no'?' no':'')))+(isGap?' gapmark':'');
+    return '&lt;i class=&quot;'+cls+'&quot; onclick=&quot;passJump('+i+')&quot;&gt;'+(i+1)+'&lt;/i&gt;';
+  }).join('');
+  h+='&lt;/div&gt;&lt;div class=&quot;ps-now&quot;&gt;第 &lt;b&gt;'+(st.idx+1)+'&lt;/b&gt; / '+queue.length+' 张'+(st.apdN?('　原有 '+st.origN+' · 后加入 '+st.apdN):'')+'&lt;/div&gt;&lt;/div&gt;';
   h+='&lt;div class=&quot;pt-keys&quot;&gt;快捷键：← → 翻页 ｜ 1 做熟了 ｜ 2 不会 ｜ 空格 展开全部 ｜ Esc 返回&lt;/div&gt;';
   h+='&lt;/div&gt;';
   box.innerHTML=h;
@@ -7632,6 +7810,21 @@ function render(){
       +'<div class="go">进入学习台 <span class="arr">→</span></div>'
       +'<div class="card-watermark">'+PAW_SVG+'</div></div>';
   }).join('')
+  /* 顺序：单词卡学习台（APPS 第 3 张）之后 → 学习工具 → 学习总览 → 留言小窝 → 数据同步 */
+  +'<div class="card tools" onclick="openTools()"><div class="collar-bar"></div>'
+  +'<div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>'
+  +'<h2>学习工具</h2>'
+  +'<div class="desc">艾宾浩斯复习表、任务待办、番茄钟、双人课表、跨存档数据迁移，全部内置。</div>'
+  +'<div class="stats"><span class="chip">复习表 · 待办 · 番茄钟 · 课表 · 迁移</span></div>'
+  +'<div class="go">打开工具箱 <span class="arr">→</span></div>'
+  +'<div class="card-watermark">'+PAW_SVG+'</div></div>'
+  +'<div class="card stat" onclick="openStats()"><div class="collar-bar"></div>'
+  +'<div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg></div>'
+  +'<h2>学习总览</h2>'
+  +'<div class="desc">今日背词、刷题、专注一屏看全；近一年打卡热力图，点格子看那天学了什么。</div>'
+  +'<div class="stats"><span class="chip">今日 · 累计 · 热力图</span></div>'
+  +'<div class="go">看看进度 <span class="arr">→</span></div>'
+  +'<div class="card-watermark">'+PAW_SVG+'</div></div>'
   +'<div class="card board" onclick="boardOpen()"><div class="collar-bar"></div>'
   +'<div class="ic">'+CHAT_SVG+'</div>'
   +'<h2>留言小窝</h2>'
@@ -7644,21 +7837,668 @@ function render(){
   +'<div class="desc">电脑备份全部数据 → 手机/平板一键恢复。三个学习台的词库、错题、进度、作文一起同步，换设备不再重新弄。</div>'
   +'<div class="stats"><span class="chip">一键备份 / 一键恢复</span></div>'
   +'<div class="go">打开同步 <span class="arr">→</span></div>'
-  +'</div>'
-    +'<div class="card stat" onclick="openStats()"><div class="collar-bar"></div>'
-  +'<div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg></div>'
-  +'<h2>学习总览</h2>'
-  +'<div class="desc">今日背词、刷题、专注一屏看全；近一年打卡热力图，点格子看那天学了什么。</div>'
-  +'<div class="stats"><span class="chip">今日 · 累计 · 热力图</span></div>'
-  +'<div class="go">看看进度 <span class="arr">→</span></div>'
-  +'<div class="card-watermark">'+PAW_SVG+'</div></div>'
-  +'<div class="card tools" onclick="openTools()"><div class="collar-bar"></div>'
-  +'<div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>'
-  +'<h2>学习工具</h2>'
-  +'<div class="desc">艾宾浩斯复习表、任务待办、番茄钟、跨存档数据迁移，全部内置。</div>'
-  +'<div class="stats"><span class="chip">复习表 · 待办 · 番茄钟 · 迁移</span></div>'
-  +'<div class="go">打开工具箱 <span class="arr">→</span></div>'
-  +'<div class="card-watermark">'+PAW_SVG+'</div></div>';
+  +'</div>';
+}
+/* ===== 双人课表：整页嵌入工具视图（iframe 隔离样式）===== */
+const SCH_SRCDOC=`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>双人课表</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232f6fed'/%3E%3Crect x='24' y='22' width='52' height='52' rx='8' fill='none' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M36 22v14M64 22v14M22 42h56' stroke='%23fff' stroke-width='6'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f2f4f8; --card:#fff; --ink:#1a1d26; --muted:#8a8f9c; --line:#eceef3;
+    --mine:#2f6fed; --her:#ff6b9d; --free:#16a34a; --freeOn:#22c55e;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:linear-gradient(180deg,#f6f8fc 0%,var(--bg) 240px); color:var(--ink); padding-bottom:64px;
+  }
+  .app{max-width:480px;margin:0 auto;padding:18px 14px 0;}
+
+  header{background:var(--card);border-radius:20px;padding:16px 18px 14px;margin-bottom:14px;
+    box-shadow:0 2px 12px rgba(31,42,84,.05);}
+  .h-row{display:flex;align-items:center;gap:12px;}
+  .logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#2f6fed,#6aa2ff);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .logo svg{width:24px;height:24px;}
+  h1{font-size:20px;font-weight:800;letter-spacing:.3px;}
+  .sub{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5;}
+  .people{display:flex;gap:8px;margin-top:12px;}
+  .p{flex:1;display:flex;align-items:center;gap:8px;background:#f7f9fd;border-radius:12px;padding:8px 10px;}
+  .p .av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:800;color:#fff;flex:0 0 auto;}
+  .p.me .av{background:linear-gradient(135deg,#2f6fed,#6aa2ff);}
+  .p.her .av{background:linear-gradient(135deg,#ff6b9d,#ff9dc0);}
+  .p .pt{font-size:13px;font-weight:700;line-height:1.25;}
+  .p .pd{font-size:11px;color:var(--muted);margin-top:1px;}
+
+  .main-tabs{display:flex;gap:6px;background:#e8ecf3;border-radius:14px;padding:4px;margin-bottom:14px;}
+  .mtab{flex:1;text-align:center;padding:10px 0;border-radius:11px;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;transition:all .15s;}
+  .mtab.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(31,42,84,.08);}
+
+  .view{display:none;}
+  .view.on{display:block;}
+
+  /* 阶段标签 */
+  .stagebar{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .stagebar::-webkit-scrollbar{display:none;}
+  .stage-tab{flex:0 0 auto;padding:9px 15px;border-radius:999px;background:#e8ecf3;font-size:13.5px;color:#6b7280;border:none;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .stage-tab.on{background:var(--ink);color:#fff;font-weight:700;}
+  .week-hint{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mine);padding:0 2px 12px;}
+  .week-hint .dot{width:7px;height:7px;border-radius:50%;background:var(--mine);flex:0 0 auto;}
+
+  /* 按天卡片（我的/她的课表） */
+  .day{background:var(--card);border-radius:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(31,42,84,.04);overflow:hidden;}
+  .day-hd{display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:15px;font-weight:800;border-bottom:1px solid var(--line);}
+  .day-hd .bar{width:4px;height:14px;border-radius:2px;background:var(--mine);flex:0 0 auto;}
+  .view-her .day-hd .bar{background:var(--her);}
+  .day-hd .free{font-size:12px;color:#b0b4c0;font-weight:400;margin-left:auto;}
+  .cls{display:flex;gap:10px;padding:11px 13px;border-bottom:1px solid #f3f5f9;cursor:pointer;}
+  .cls:last-child{border-bottom:none;}
+  .cls:active{background:#fafbfe;}
+  .cls-time{flex:0 0 78px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f3f5fa;border-radius:10px;padding:8px 4px;min-height:56px;}
+  .cls-sec{font-size:13px;font-weight:800;color:#333;}
+  .cls-time-txt{font-size:11px;color:#8a8f9c;margin-top:4px;line-height:1.35;text-align:center;}
+  .cls-info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  .cls-name{font-size:15px;font-weight:700;line-height:1.4;}
+  .cls-meta{display:flex;flex-wrap:wrap;gap:3px 8px;margin-top:6px;font-size:13px;color:#555;line-height:1.4;}
+  .cls-wk{display:inline-flex;align-items:center;margin-top:6px;align-self:flex-start;font-size:12px;font-weight:600;color:#555;background:#f3f5fa;border-radius:6px;padding:2px 8px;line-height:1.5;}
+
+  /* 我的课程配色 */
+  .c1{background:#FFF3E0;}.c1 .cls-name{color:#BF360C;}
+  .c2{background:#E3F2FD;}.c2 .cls-name{color:#0D47A1;}
+  .c3{background:#E8F5E9;}.c3 .cls-name{color:#1B5E20;}
+  .c4{background:#F3E5F5;}.c4 .cls-name{color:#4A148C;}
+  .c5{background:#FFEBEE;}.c5 .cls-name{color:#B71C1C;}
+  .c6{background:#FFF8E1;}.c6 .cls-name{color:#B26A00;}
+  .c7{background:#E0F7FA;}.c7 .cls-name{color:#006064;}
+  .c8{background:#FCE4EC;}.c8 .cls-name{color:#880E4F;}
+  .c9{background:#FFE0B2;}.c9 .cls-name{color:#E65100;}
+  .c10{background:#E8EAF6;}.c10 .cls-name{color:#1A237E;}
+  .c11{background:#EFEBE9;}.c11 .cls-name{color:#5D4037;}
+  /* 她的课程配色 */
+  .h1{background:#E0F2F1;}.h1 .cls-name{color:#004D40;}
+  .h2{background:#FCE4EC;}.h2 .cls-name{color:#880E4F;}
+  .h3{background:#E8EAF6;}.h3 .cls-name{color:#1A237E;}
+  .h4{background:#FFF3E0;}.h4 .cls-name{color:#E65100;}
+  .h5{background:#E0F7FA;}.h5 .cls-name{color:#006064;}
+  .h6{background:#F3E5F5;}.h6 .cls-name{color:#4A148C;}
+  .h7{background:#E8F5E9;}.h7 .cls-name{color:#1B5E20;}
+
+  .note{background:var(--card);border-radius:16px;padding:13px 14px;margin-bottom:12px;font-size:13px;color:#666;line-height:1.7;}
+  .note b{color:#333;}
+
+  /* ===== 一起有空 ===== */
+  .best-card{
+    background:linear-gradient(135deg,#16a34a,#3ecf6e);border-radius:16px;padding:16px 16px 14px;
+    color:#fff;margin-bottom:12px;box-shadow:0 4px 14px rgba(22,163,74,.25);
+  }
+  .bc-label{font-size:11px;font-weight:700;letter-spacing:1px;opacity:.85;}
+  .bc-main{font-size:22px;font-weight:800;margin-top:5px;line-height:1.3;}
+  .bc-sub{font-size:13px;opacity:.92;margin-top:4px;line-height:1.5;}
+
+  .free-day{background:var(--card);border-radius:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(31,42,84,.04);padding:12px 14px;}
+  .fd-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+  .fd-day{font-size:14px;font-weight:800;}
+  .fd-count{font-size:11px;font-weight:700;color:var(--free);background:#E8F7EE;border-radius:6px;padding:2px 8px;}
+  .fd-count.none{color:#b0b4c0;background:#f1f3f8;}
+  .tl{display:flex;gap:2px;height:26px;border-radius:7px;overflow:hidden;}
+  .tl-seg{flex:1;cursor:pointer;transition:transform .1s;}
+  .tl-seg.on{background:var(--freeOn);}
+  .tl-seg.off{background:#e7eaf1;}
+  .tl-seg:active{transform:scaleY(.9);}
+  .fd-pills{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;}
+  .pill{background:#E8F7EE;color:#15803d;font-weight:700;font-size:12.5px;border-radius:8px;padding:4px 10px;cursor:pointer;}
+  .pill:active{background:#d4efe0;}
+  .fd-none{font-size:12.5px;color:#b0b4c0;margin-top:8px;}
+  .tl-tick{display:flex;gap:2px;margin-top:4px;}
+  .tk{flex:1;font-size:9px;color:#c2c7d2;text-align:center;}
+  .tk.b{color:#9aa1b0;font-weight:700;}
+  .tk.m{color:#b9bfcc;}
+  .free-tip{font-size:12px;color:var(--muted);line-height:1.6;margin-top:12px;padding:0 4px;}
+
+  /* 底部弹窗 */
+  .sheet{position:fixed;inset:0;z-index:50;display:none;}
+  .sheet.open{display:block;}
+  .sheet-mask{position:absolute;inset:0;background:rgba(15,20,35,.5);}
+  .sheet-body{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;padding:22px 20px 34px;max-width:480px;margin:0 auto;transform:translateY(100%);transition:transform .22s ease;}
+  .sheet.open .sheet-body{transform:translateY(0);}
+  .sheet-grab{width:36px;height:4px;border-radius:2px;background:#e2e2e6;margin:0 auto 16px;}
+  .sheet-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+  .sheet-name{font-size:19px;font-weight:800;line-height:1.4;}
+  .sheet-close{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:#f2f4f8;border:none;font-size:16px;color:#666;cursor:pointer;font-family:inherit;line-height:1;}
+  .sheet-list{margin-top:16px;}
+  .sheet-item{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #f1f3f8;font-size:14px;}
+  .sheet-item:last-child{border-bottom:none;}
+  .sheet-item .k{color:#999;flex:0 0 auto;}
+  .sheet-item .v{color:#222;text-align:right;font-weight:600;line-height:1.45;}
+  .sheet-tip{margin-top:14px;font-size:12px;color:#b0b4c0;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="h-row">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="3" stroke="#fff" stroke-width="2"/><path d="M3 9h18M8 4v3M16 4v3" stroke="#fff" stroke-width="2"/><path d="M8 14l2.5 2.5L16 12" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <h1>双人课表</h1>
+        <p class="sub">我的课表按结课分阶段 · 她的课表每周固定</p>
+      </div>
+    </div>
+    <div class="people">
+      <div class="p me"><div class="av">我</div><div><div class="pt">我 · 制药专升本2601</div><div class="pd">知行楼 / 思源楼</div></div></div>
+      <div class="p her"><div class="av">她</div><div><div class="pt">她 · 计算机类</div><div class="pd">第1周整理 · 每周固定</div></div></div>
+    </div>
+  </header>
+
+  <div class="main-tabs">
+    <div class="mtab" data-v="mine">我的课表</div>
+    <div class="mtab on" data-v="together">一起有空</div>
+    <div class="mtab" data-v="her">她的课表</div>
+  </div>
+
+  <!-- ===== 我的课表 ===== -->
+  <div class="view view-mine" id="vMine">
+    <div class="stagebar" id="stageBarMine"></div>
+    <div class="week-hint" id="weekHintMine"></div>
+    <div id="mainMine"></div>
+  </div>
+
+  <!-- ===== 一起有空 ===== -->
+  <div class="view view-together on" id="vTogether">
+    <div class="stagebar" id="stageBarFree"></div>
+    <div class="week-hint" id="weekHintFree"></div>
+    <div id="freeMain"></div>
+  </div>
+
+  <!-- ===== 她的课表 ===== -->
+  <div class="view view-her" id="vHer">
+    <div id="mainHer"></div>
+  </div>
+
+  <div class="note" style="margin-top:2px;">她的课表来自第1周（8/31-9/4）截图，默认每周固定；若实际课程有单双周变化，告诉我再调整。绿色 = 两人都空闲，点时间条或时段可看当天两人详情。</div>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="sheet-mask" id="sheetMask"></div>
+  <div class="sheet-body">
+    <div class="sheet-grab"></div>
+    <div class="sheet-hd">
+      <div class="sheet-name" id="shName"></div>
+      <button class="sheet-close" id="shClose" aria-label="关闭">×</button>
+    </div>
+    <div class="sheet-list" id="shList"></div>
+    <div class="sheet-tip" id="shTip"></div>
+  </div>
+</div>
+
+<script>
+/* ===== 数据 ===== */
+const TERM_START = new Date('2026-09-07T00:00:00');
+const SEC_TIME = {1:'08:00-08:45',2:'08:50-09:35',3:'10:00-10:45',4:'10:50-11:35',5:'13:30-14:15',6:'14:20-15:05',7:'15:30-16:15',8:'16:20-17:05',9:'18:00-18:45',10:'18:50-19:35',11:'20:00-20:45',12:'20:50-21:35'};
+const DAYS = ['周一','周二','周三','周四','周五'];
+const TL_TICKS = [{s:1,n:2,c:''},{s:3,n:2,c:'午'},{s:5,n:2,c:''},{s:7,n:2,c:'晚'},{s:9,n:2,c:''},{s:11,n:2,c:''}];
+
+const COURSES = {
+  a:{name:'药品生产质量管理工程',code:'25HG31208',weeks:'1-8周',teacher:'杨若冰',color:'c1'},
+  b:{name:'有机化学',code:'25HG21003Z',weeks:'1-12周',teacher:'刘钰君',color:'c2'},
+  c:{name:'生物化学',code:'25HG31205',weeks:'7-16周',teacher:'陶云昌',color:'c3'},
+  d:{name:'专创融合训练（制药）',code:'25HG51201',weeks:'9-14周',teacher:'周德英',color:'c4'},
+  e:{name:'习近平新时代中国特色社会主义思想概论',code:'25MY11005Z',weeks:'1-12周',teacher:'张诗琦',color:'c5'},
+  f:{name:'药物合成',code:'25HG31207',weeks:'1-10周',teacher:'陶云昌',color:'c6'},
+  g:{name:'化工仪表及智能化控制',code:'25HG31111',weeks:'1-8周',teacher:'徐良',color:'c7'},
+  h:{name:'中药制药基础',code:'25HG32202',weeks:'1-8周',teacher:'霍思含',color:'c8'},
+  i:{name:'化工原理',code:'25HG21002Z',weeks:'1-16周',teacher:'徐良',color:'c9'},
+  j:{name:'化工制图',code:'25HG31118',weeks:'9-16周',teacher:'郭文旋',color:'c10'},
+  k:{name:'化工原理课程设计',code:'浅课程',weeks:'15-16周',teacher:'徐良',color:'c11'}
+};
+
+const HER_COURSES = {
+  j1:{name:'Java语言程序设计（A）',code:'',weeks:'每周固定',teacher:'王全新',color:'h1'},
+  xg:{name:'习近平新时代中国特色社会主义思想概论',code:'',weeks:'每周固定',teacher:'蔡畅',color:'h2'},
+  sj:{name:'数据结构（B）',code:'',weeks:'每周固定',teacher:'李昕',color:'h3'},
+  web:{name:'Web前端开发',code:'',weeks:'每周固定',teacher:'刘音',color:'h4'},
+  os:{name:'操作系统',code:'',weeks:'每周固定',teacher:'王玉博',color:'h5'},
+  se:{name:'软件工程（B）',code:'',weeks:'每周固定',teacher:'茹美玉',color:'h6'},
+  db:{name:'数据库原理',code:'',weeks:'每周固定',teacher:'刘文瑛',color:'h7'}
+};
+
+const HER_WEEK = [
+  {day:'周一',slots:[
+    {sec:'7-8节',time:'15:30-17:05',key:'j1',loc:'计算机基础实验室-3(505-506)'},
+    {sec:'9节',time:'18:00-18:45',key:'os',loc:'思源楼-323'},
+    {sec:'11节',time:'20:00-20:45',key:'se',loc:'知行楼C308-智慧教室'}
+  ]},
+  {day:'周二',slots:[
+    {sec:'1-2节',time:'08:00-09:35',key:'xg',loc:'思源楼-324'},
+    {sec:'3-4节',time:'10:00-11:35',key:'sj',loc:'知行楼-C107-智慧教室'},
+    {sec:'9节',time:'18:00-18:45',key:'web',loc:'第二实验楼仿真实验室-108'},
+    {sec:'11节',time:'20:00-20:45',key:'db',loc:'思源楼-433'}
+  ]},
+  {day:'周三',slots:[
+    {sec:'7-8节',time:'15:30-17:05',key:'j1',loc:'计算机基础实验室-4(509-510)'},
+    {sec:'9节',time:'18:00-18:45',key:'web',loc:'第二实验楼仿真实验室-108'},
+    {sec:'11节',time:'20:00-20:45',key:'db',loc:'思源楼-433'}
+  ]},
+  {day:'周四',slots:[
+    {sec:'5-6节',time:'13:30-15:05',key:'web',loc:'第二实验楼仿真实验室-108'},
+    {sec:'7-8节',time:'15:30-17:05',key:'xg',loc:'思源楼239-智慧教室'},
+    {sec:'9节',time:'18:00-18:45',key:'os',loc:'知行楼-A105'},
+    {sec:'11节',time:'20:00-20:45',key:'sj',loc:'思源楼-331'}
+  ]},
+  {day:'周五',slots:[
+    {sec:'1-2节',time:'08:00-09:35',key:'j1',loc:'计算机基础实验室-4(509-510)'},
+    {sec:'7节',time:'15:30-16:15',key:'se',loc:'知行楼'}
+  ]}
+];
+
+const SLOT = (sec,time,key,loc)=>({sec,time,key,loc});
+const STAGES = [
+  {
+    label:'第1-6周',
+    days:[
+      {day:'周一',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105'),SLOT('7-8节','15:30-17:05','g','知行楼-C101')]},
+      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C201')]},
+      {day:'周三',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('7-8节','15:30-17:05','g','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301')]},
+      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C301')]},
+      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
+    ],
+    note:'生物化学（第7周开）、专创融合训练（第9周开）、化工制图（第9周开）此时段为空'
+  },
+  {
+    label:'第7-8周',
+    days:[
+      {day:'周一',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105'),SLOT('7-8节','15:30-17:05','g','知行楼-C101')]},
+      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C201')]},
+      {day:'周三',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('7-8节','15:30-17:05','g','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301')]},
+      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C301')]},
+      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
+    ],
+    note:'生物化学本周开课（周一、周三 3-4节）'
+  },
+  {
+    label:'第9-10周',
+    days:[
+      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105')]},
+      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301'),SLOT('5-6节','13:30-15:05','f','知行楼-C201')]},
+      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301'),SLOT('5-6节','13:30-15:05','f','知行楼-C201')]},
+      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
+    ],
+    note:'药品生产质量管理工程、化工仪表及智能化控制、中药制药基础已于第8周结课；专创融合训练（制药）、化工制图本周开课'
+  },
+  {
+    label:'第11-12周',
+    days:[
+      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105')]},
+      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
+      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
+      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
+    ],
+    note:'药物合成已于第10周结课'
+  },
+  {
+    label:'第13-14周',
+    days:[
+      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101')]},
+      {day:'周二',slots:[SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
+      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+      {day:'周四',slots:[SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
+      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
+    ],
+    note:'有机化学、习近平新时代中国特色社会主义思想概论已于第12周结课'
+  },
+  {
+    label:'第15-16周',
+    days:[
+      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101')]},
+      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
+    ],
+    note:'专创融合训练已于第14周结课；化工原理课程设计（浅课程，徐良老师，共2周）安排在15-16周，时间以老师通知为准'
+  }
+];
+
+/* ===== 工具 ===== */
+function currentWeek(){
+  const diff = Math.floor((new Date() - TERM_START) / 86400000);
+  return diff < 0 ? 1 : Math.floor(diff / 7) + 1;
+}
+function stageIndexForWeek(w){
+  if (w <= 6) return 0;
+  if (w <= 8) return 1;
+  if (w <= 10) return 2;
+  if (w <= 12) return 3;
+  if (w <= 14) return 4;
+  return 5;
+}
+function secRange(sec){
+  const m = sec.match(/\d+/g);
+  if (!m) return [];
+  if (m.length === 1) return [+m[0]];
+  const a = +m[0], b = +m[1];
+  const r = [];
+  for (let i = a; i <= b; i++) r.push(i);
+  return r;
+}
+function stageBusy(idx){
+  const map = {};
+  DAYS.forEach(d => map[d] = new Set());
+  STAGES[idx].days.forEach(dd => dd.slots.forEach(sl => secRange(sl.sec).forEach(n => map[dd.day].add(n))));
+  return map;
+}
+const herBusyMap = (() => {
+  const map = {};
+  DAYS.forEach(d => map[d] = new Set());
+  HER_WEEK.forEach(dd => dd.slots.forEach(sl => secRange(sl.sec).forEach(n => map[dd.day].add(n))));
+  return map;
+})();
+function mergeSecs(list){
+  if (!list.length) return [];
+  const res = [];
+  let start = list[0], prev = list[0];
+  for (let i = 1; i <= list.length; i++) {
+    const cur = list[i];
+    if (cur !== prev + 1) {
+      res.push(start === prev ? start + '节' : start + '-' + prev + '节');
+      start = cur;
+    }
+    prev = cur;
+  }
+  return res;
+}
+function parseSeg(seg){
+  const p = seg.replace('节','').split('-').map(Number);
+  return p.length > 1 ? p : [p[0], p[0]];
+}
+function segTime(seg){
+  const [a, b] = parseSeg(seg);
+  return a === b ? SEC_TIME[a] : SEC_TIME[a].split('-')[0] + ' - ' + SEC_TIME[b].split('-')[1];
+}
+
+/* ===== 视图切换 ===== */
+document.querySelectorAll('.mtab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.mtab').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.view').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    const v = t.dataset.v;
+    document.getElementById('v' + v.charAt(0).toUpperCase() + v.slice(1)).classList.add('on');
+  });
+});
+
+/* ===== 我的课表 ===== */
+let mineIdx = stageIndexForWeek(currentWeek());
+function renderStageBarMine(){
+  const bar = document.getElementById('stageBarMine');
+  bar.innerHTML = '';
+  STAGES.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'stage-tab' + (i === mineIdx ? ' on' : '');
+    b.textContent = s.label;
+    b.addEventListener('click', () => { mineIdx = i; renderMine(); renderFree(); });
+    bar.appendChild(b);
+  });
+  const w = currentWeek();
+  document.getElementById('weekHintMine').innerHTML = w >= 17
+    ? '<span class="dot"></span>本学期正课已于第16周结束，当前进入复习考试阶段'
+    : '<span class="dot"></span>现在是第 ' + w + ' 周，对应阶段已为你标出';
+}
+function renderMine(){
+  renderStageBarMine();
+  const main = document.getElementById('mainMine');
+  main.innerHTML = '';
+  const s = STAGES[mineIdx];
+  s.days.forEach(d => {
+    const day = document.createElement('section');
+    day.className = 'day';
+    const hd = document.createElement('div');
+    hd.className = 'day-hd';
+    hd.innerHTML = '<span class="bar"></span>' + d.day + (d.slots.length === 0 ? '<span class="free">无课</span>' : '');
+    day.appendChild(hd);
+    d.slots.forEach(slot => {
+      const c = COURSES[slot.key];
+      const cls = document.createElement('div');
+      cls.className = 'cls ' + c.color;
+      cls.innerHTML = '<div class="cls-time"><div class="cls-sec">' + slot.sec + '</div><div class="cls-time-txt">' + slot.time + '</div></div>' +
+        '<div class="cls-info"><div class="cls-name"></div><div class="cls-meta"><span class="m">' + slot.loc + '</span><span class="m">' + c.teacher + '</span></div><div class="cls-wk">' + c.weeks + '</div></div>';
+      cls.querySelector('.cls-name').textContent = c.name;
+      cls.addEventListener('click', () => openCourseSheet(c, slot, false));
+      day.appendChild(cls);
+    });
+    main.appendChild(day);
+  });
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.innerHTML = '<b>本阶段说明：</b>' + s.note;
+  main.appendChild(note);
+}
+
+/* ===== 她的课表 ===== */
+function renderHer(){
+  const main = document.getElementById('mainHer');
+  main.innerHTML = '';
+  HER_WEEK.forEach(d => {
+    const day = document.createElement('section');
+    day.className = 'day';
+    const hd = document.createElement('div');
+    hd.className = 'day-hd';
+    hd.innerHTML = '<span class="bar"></span>' + d.day + (d.slots.length === 0 ? '<span class="free">无课</span>' : '');
+    day.appendChild(hd);
+    d.slots.forEach(slot => {
+      const c = HER_COURSES[slot.key];
+      const cls = document.createElement('div');
+      cls.className = 'cls ' + c.color;
+      cls.innerHTML = '<div class="cls-time"><div class="cls-sec">' + slot.sec + '</div><div class="cls-time-txt">' + slot.time + '</div></div>' +
+        '<div class="cls-info"><div class="cls-name"></div><div class="cls-meta"><span class="m">' + slot.loc + '</span><span class="m">' + c.teacher + '</span></div><div class="cls-wk">' + c.weeks + '</div></div>';
+      cls.querySelector('.cls-name').textContent = c.name;
+      cls.addEventListener('click', () => openCourseSheet(c, slot, true));
+      day.appendChild(cls);
+    });
+    main.appendChild(day);
+  });
+}
+
+/* ===== 一起有空 ===== */
+function renderStageBarFree(){
+  const bar = document.getElementById('stageBarFree');
+  bar.innerHTML = '';
+  STAGES.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'stage-tab' + (i === mineIdx ? ' on' : '');
+    b.textContent = s.label;
+    b.addEventListener('click', () => { mineIdx = i; renderMine(); renderFree(); });
+    bar.appendChild(b);
+  });
+  const w = currentWeek();
+  document.getElementById('weekHintFree').innerHTML = w >= 17
+    ? '<span class="dot"></span>本学期正课已结束，以下为最后两周（15-16周）参考'
+    : '<span class="dot"></span>现在是第 ' + w + ' 周 · 绿色 = 两人都空闲';
+}
+function renderFree(){
+  renderStageBarFree();
+  const main = document.getElementById('freeMain');
+  main.innerHTML = '';
+  const myMap = stageBusy(mineIdx);
+
+  // 每天空闲节次
+  const dayFree = {};
+  DAYS.forEach(d => {
+    const list = [];
+    for (let s = 1; s <= 12; s++) {
+      if (!myMap[d].has(s) && !herBusyMap[d].has(s)) list.push(s);
+    }
+    dayFree[d] = list;
+  });
+
+  // 推荐：连续空闲最长
+  let best = null;
+  DAYS.forEach(d => {
+    const sorted = dayFree[d].slice().sort((a, b) => a - b);
+    let cur = [], bestRun = [];
+    sorted.forEach((s, i) => {
+      if (i === 0 || s === sorted[i - 1] + 1) cur.push(s);
+      else {
+        if (cur.length > bestRun.length) bestRun = cur;
+        cur = [s];
+      }
+    });
+    if (cur.length > bestRun.length) bestRun = cur;
+    if (bestRun.length && (!best || bestRun.length > best.len)) {
+      best = { day: d, run: bestRun, len: bestRun.length };
+    }
+  });
+
+  if (best) {
+    const bc = document.createElement('div');
+    bc.className = 'best-card';
+    const [a, b] = [best.run[0], best.run[best.run.length - 1]];
+    const t = a === b ? SEC_TIME[a] : SEC_TIME[a].split('-')[0] + ' - ' + SEC_TIME[b].split('-')[1];
+    bc.innerHTML = '<div class="bc-label">本周最佳约会时段</div>' +
+      '<div class="bc-main">' + best.day + ' · ' + (a === b ? '第' + a + '节' : '第' + a + '-' + b + '节') + '</div>' +
+      '<div class="bc-sub">' + t + '，连续 ' + best.len + ' 节两人都空闲</div>';
+    main.appendChild(bc);
+  }
+
+  // 每天一张卡
+  DAYS.forEach(d => {
+    const free = dayFree[d];
+    const card = document.createElement('div');
+    card.className = 'free-day';
+    const segs = mergeSecs(free);
+    const hd = document.createElement('div');
+    hd.className = 'fd-hd';
+    hd.innerHTML = '<span class="fd-day">' + d + '</span>' +
+      (free.length ? '<span class="fd-count">空闲 ' + free.length + ' 节</span>' : '<span class="fd-count none">当天无空闲</span>');
+    card.appendChild(hd);
+
+    const tl = document.createElement('div');
+    tl.className = 'tl';
+    for (let s = 1; s <= 12; s++) {
+      const seg = document.createElement('div');
+      seg.className = 'tl-seg ' + (free.indexOf(s) >= 0 ? 'on' : 'off');
+      seg.dataset.day = d; seg.dataset.sec = s;
+      tl.appendChild(seg);
+    }
+    card.appendChild(tl);
+
+    // 节次刻度（午/晚标记）
+    const tk = document.createElement('div');
+    tk.className = 'tl-tick';
+    for (let s = 1; s <= 12; s++) {
+      const c = (s === 3) ? '午' : (s === 7) ? '晚' : (s === 9) ? '9' : (s === 5) ? '5' : '';
+      tk.innerHTML += '<div class="tk ' + (c ? 'b' : 'm') + '">' + c + '</div>';
+    }
+    card.appendChild(tk);
+
+    const pills = document.createElement('div');
+    pills.className = 'fd-pills';
+    if (segs.length) {
+      segs.forEach(seg => {
+        const p = document.createElement('span');
+        p.className = 'pill';
+        p.textContent = seg + '　' + segTime(seg);
+        p.dataset.day = d; p.dataset.seg = seg;
+        pills.appendChild(p);
+      });
+    } else {
+      pills.innerHTML = '<span class="fd-none">两人当天都有课，没有共同空闲时段</span>';
+    }
+    card.appendChild(pills);
+
+    // 事件：点节次段
+    tl.querySelectorAll('.tl-seg').forEach(seg => {
+      seg.addEventListener('click', () => openFreeDetail(d, +seg.dataset.sec, +seg.dataset.sec));
+    });
+    // 事件：点空闲时段
+    pills.querySelectorAll('.pill').forEach(p => {
+      p.addEventListener('click', () => {
+        const [a, b] = parseSeg(p.dataset.seg);
+        openFreeDetail(d, a, b);
+      });
+    });
+
+    main.appendChild(card);
+  });
+
+  const tip = document.createElement('div');
+  tip.className = 'free-tip';
+  tip.innerHTML = '时间条按节次排列，绿色 = 两人都空闲，灰色 = 至少一人有课（点开可看是谁的课）。她那边若有单双周变化，告诉我再改。';
+  main.appendChild(tip);
+}
+function openFreeDetail(day, a, b){
+  const myMap = stageBusy(mineIdx);
+  const stMap = { free: '两人都空闲', onlyMe: '只有我有课', onlyHer: '只有她有课', both: '两人都有课' };
+  let st = 'free';
+  for (let s = a; s <= b; s++) {
+    const m = myMap[day].has(s), h = herBusyMap[day].has(s);
+    if (m && h) { st = 'both'; break; }
+    if (m) { st = 'onlyMe'; break; }
+    if (h) { st = 'onlyHer'; break; }
+  }
+  const t = a === b ? SEC_TIME[a] : SEC_TIME[a].split('-')[0] + ' - ' + SEC_TIME[b].split('-')[1];
+  const secTxt = a === b ? '第' + a + '节' : '第' + a + '-' + b + '节';
+  const mySlot = slotForSec(STAGES[mineIdx], day, a);
+  const herSlot = slotForSec(HER_WEEK, day, a);
+  let rows = '<div class="sheet-item"><span class="k">状态</span><span class="v">' + stMap[st] + '</span></div>';
+  rows += '<div class="sheet-item"><span class="k">时段</span><span class="v">' + secTxt + '　' + t + '</span></div>';
+  rows += '<div class="sheet-item"><span class="k">我</span><span class="v">' + (mySlot ? COURSES[mySlot.key].name + ' · ' + mySlot.loc : '空闲') + '</span></div>';
+  rows += '<div class="sheet-item"><span class="k">她</span><span class="v">' + (herSlot ? HER_COURSES[herSlot.key].name + ' · ' + herSlot.loc : '空闲') + '</span></div>';
+  openSheet(day + ' · ' + secTxt, rows, '绿色时段两人都没课，就是约会的好时机');
+}
+function slotForSec(weekData, day, sec){
+  const d = weekData.find(x => x.day === day);
+  if (!d) return null;
+  return d.slots.find(sl => secRange(sl.sec).indexOf(sec) >= 0) || null;
+}
+
+/* ===== 弹窗 ===== */
+const sheet = document.getElementById('sheet');
+function openSheet(name, rowsHtml, tip){
+  document.getElementById('shName').textContent = name;
+  document.getElementById('shList').innerHTML = rowsHtml;
+  document.getElementById('shTip').textContent = tip || '';
+  sheet.classList.add('open');
+}
+function openCourseSheet(c, slot, isHer){
+  let rows = '';
+  if (c.code) rows += '<div class="sheet-item"><span class="k">课程号</span><span class="v">' + c.code + '</span></div>';
+  rows += '<div class="sheet-item"><span class="k">节次</span><span class="v">' + slot.sec + '　' + slot.time + '</span></div>';
+  rows += '<div class="sheet-item"><span class="k">周次</span><span class="v">' + c.weeks + '</span></div>';
+  rows += '<div class="sheet-item"><span class="k">教室</span><span class="v">' + slot.loc + '</span></div>';
+  rows += '<div class="sheet-item"><span class="k">教师</span><span class="v">' + c.teacher + '</span></div>';
+  const tip = isHer
+    ? '她的课表按第1周整理，默认每周固定；若课程有单双周变化，告诉我再调整。'
+    : '作息时间：上午 1-4 节 / 下午 5-8 节 / 晚上 9-12 节，每节 45 分钟。';
+  openSheet(c.name, rows, tip);
+}
+function closeSheet(){ sheet.classList.remove('open'); }
+document.getElementById('sheetMask').addEventListener('click', closeSheet);
+document.getElementById('shClose').addEventListener('click', closeSheet);
+
+/* ===== 初始化 ===== */
+renderMine();
+renderHer();
+renderFree();
+<\/script>
+</body>
+</html>
+`;
+function openSchedule(){
+  _curTool='schedule';
+  document.getElementById('toolTitle').textContent='双人课表';
+  const tb=document.getElementById('toolBody');
+  tb.innerHTML='<div class="sch-wrap"><iframe class="sch-frame" id="schFrame"></iframe></div>';
+  const f=document.getElementById('schFrame');
+  if(f){ try{ f.setAttribute('srcdoc', SCH_SRCDOC); }catch(e){ toast('课表加载失败：'+e.message); } }
 }
 function openTools(){
   _curTool=null;
@@ -7670,7 +8510,10 @@ function openTools(){
     {fn:'openTodo()',name:'学习任务待办',desc:'一次性 / 每天 / 每周 / 每月重复，到期自动提醒',
      svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'},
     {fn:'openPomo()',name:'番茄钟',desc:'时长任意调节，后台也能计时，专注时长自动汇总',
-     svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6M12 5v0"/></svg>'}
+     svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6M12 5v0"/></svg>'},
+    {fn:'openSchedule()',name:'双人课表',
+     desc:'主人和小狗两张课表，自动算出每阶段两人都有空的时间，还标出本周最佳约会时段',
+     svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h3M13 14h3M8 18h3"/></svg>'}
   ];
   document.getElementById('toolBody').innerHTML='<div class="tool-grid">'+items.map(function(it){
     return '<div class="tool-tile" onclick="'+it.fn+'"><div class="tt-ic">'+it.svg+'</div><div class="tt-name">'+it.name+'</div><div class="tt-desc">'+it.desc+'</div></div>';
@@ -7938,7 +8781,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-01.32';
+const APP_BUILD='2026-10-26.33';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
