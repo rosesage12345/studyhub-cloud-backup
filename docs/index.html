@@ -4720,16 +4720,21 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--teal,#0d9488);cur
 .pk-b{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--bad-soft);color:var(--bad);flex:none}
 .pk-b.ok{background:var(--ok-soft);color:var(--ok)}
 .pk-b.apd{background:var(--gold-soft);color:var(--gold)}
+.pk-b.none{background:var(--line);color:var(--text2)}
 .pk-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
 .pt-strip{margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)}
 .ps-hint{font-size:12px;color:var(--text2);margin-bottom:6px;opacity:.8}
 .ps-track{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
 .ps-track::-webkit-scrollbar{display:none}
-.ps-i{flex:0 0 auto;min-width:32px;height:30px;line-height:30px;text-align:center;border-radius:9px;font-size:12px;font-weight:700;background:var(--line);color:var(--text2);cursor:pointer;font-style:normal;transition:all .15s}
+.ps-i{flex:0 0 auto;min-width:32px;padding:0 6px;box-sizing:border-box;height:30px;line-height:30px;text-align:center;border-radius:9px;font-size:12px;font-weight:700;background:var(--line);color:var(--text2);cursor:pointer;font-style:normal;transition:all .15s}
+.ps-i.apdzone{background:var(--gold-soft)}
+.ps-legend{display:flex;gap:12px;justify-content:center;font-size:11px;color:var(--text2);margin-top:2px;opacity:.85}
+.ps-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:middle}
 .ps-i.ok{background:var(--ok-soft);color:var(--ok)}
 .ps-i.no{background:var(--bad-soft);color:var(--bad)}
 .ps-i.cur{background:var(--brand);color:#fff;transform:translateY(-2px);box-shadow:0 3px 8px rgba(13,148,136,.3)}
-.ps-i.gapmark{box-shadow:inset 3px 0 0 var(--gold)}
+.ps-i.gapmark{box-shadow:inset 4px 0 0 var(--gold);position:relative}
+.ps-i.gapmark::after{content:'';position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--gold)}
 .ps-now{font-size:12px;color:var(--text2);text-align:center}
 .pt-gap{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--gold);font-size:12px;font-weight:700}
 .pt-gap::before,.pt-gap::after{content:'';flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--gold) 0 5px,transparent 5px 10px)}
@@ -5759,7 +5764,16 @@ function passJump(i){
   passState.idx=Math.max(0,Math.min(q.length-1,i));
   passState.open={};
   renderPassTrain();
-  try{ const el=document.querySelector('.ps-i.cur'); if(el&amp;&amp;el.scrollIntoView) el.scrollIntoView({inline:'center',block:'nearest'}); }catch(e){}
+}
+/* 把卡片尺里的当前格滚进视野。只滚横向容器本身，不惊动整页滚动。 */
+function passStripScroll(){
+  try{
+    const t=document.querySelector('.ps-track');
+    const el=document.querySelector('.ps-i.cur');
+    if(!t||!el) return;
+    const target=el.offsetLeft-(t.clientWidth-el.offsetWidth)/2;
+    t.scrollLeft=Math.max(0,target);
+  }catch(e){}
 }
 /* ===== 挑词 / 提取 =====
    从某个日期的卡包里挑出不熟的词（可单个、可批量），复制或迁移到别的日期卡包。 */
@@ -5805,7 +5819,7 @@ function renderPassPick(){
   else {
     h+='&lt;div class=&quot;pk-box&quot;&gt;'+ws.map(function(w){
       const on=passPick.sel[w.id]?' on':'';
-      const tag=w.mastered?'&lt;span class=&quot;pk-b ok&quot;&gt;已熟&lt;/span&gt;':(w.wrong?('&lt;span class=&quot;pk-b&quot;&gt;错 '+w.wrong+' 次&lt;/span&gt;'):'&lt;span class=&quot;pk-b&quot;&gt;没做过&lt;/span&gt;');
+      const tag=w.mastered?'&lt;span class=&quot;pk-b ok&quot;&gt;已熟&lt;/span&gt;':(w.wrong?('&lt;span class=&quot;pk-b&quot;&gt;错 '+w.wrong+' 次&lt;/span&gt;'):'&lt;span class=&quot;pk-b none&quot;&gt;没做过&lt;/span&gt;');
       const apd=w.apd?'&lt;span class=&quot;pk-b apd&quot;&gt;后加入&lt;/span&gt;':'';
       return '&lt;div class=&quot;pk-row'+on+'&quot; onclick=&quot;passPickToggle(\''+w.id+'\')&quot;&gt;'
         +'&lt;input type=&quot;checkbox&quot;'+(on?' checked':'')+' onclick=&quot;event.stopPropagation();passPickToggle(\''+w.id+'\')&quot;&gt;'
@@ -6023,13 +6037,17 @@ function renderPassTrain(){
   h+=queue.map(function(x,i){
     const r=st.results[x.id];
     const isGap=(st.gap&amp;&amp;i===st.gap);
-    const cls='ps-i'+(i===st.idx?' cur':(r==='ok'?' ok':(r==='no'?' no':'')))+(isGap?' gapmark':'');
+    const inApd=(st.gap&amp;&amp;i&gt;=st.gap);
+    const cls='ps-i'+(inApd?' apdzone':'')+(i===st.idx?' cur':(r==='ok'?' ok':(r==='no'?' no':'')))+(isGap?' gapmark':'');
     return '&lt;i class=&quot;'+cls+'&quot; onclick=&quot;passJump('+i+')&quot;&gt;'+(i+1)+'&lt;/i&gt;';
   }).join('');
-  h+='&lt;/div&gt;&lt;div class=&quot;ps-now&quot;&gt;第 &lt;b&gt;'+(st.idx+1)+'&lt;/b&gt; / '+queue.length+' 张'+(st.apdN?('　原有 '+st.origN+' · 后加入 '+st.apdN):'')+'&lt;/div&gt;&lt;/div&gt;';
+  h+='&lt;/div&gt;&lt;div class=&quot;ps-now&quot;&gt;第 &lt;b&gt;'+(st.idx+1)+'&lt;/b&gt; / '+queue.length+' 张'+(st.apdN?('　原有 '+st.origN+' · 后加入 '+st.apdN):'')+'&lt;/div&gt;'
+    +(st.apdN?'&lt;div class=&quot;ps-legend&quot;&gt;&lt;span style=&quot;color:var(--gold)&quot;&gt;■ 金色区段 = 后加入的卡&lt;/span&gt;&lt;/div&gt;':'')
+    +'&lt;/div&gt;';
   h+='&lt;div class=&quot;pt-keys&quot;&gt;快捷键：← → 翻页 ｜ 1 做熟了 ｜ 2 不会 ｜ 空格 展开全部 ｜ Esc 返回&lt;/div&gt;';
   h+='&lt;/div&gt;';
   box.innerHTML=h;
+  passStripScroll();
 }
 
 /* ---------- 重命名 / 删除 ---------- */
@@ -8781,7 +8799,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-26.33';
+const APP_BUILD='2026-10-26.34';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
