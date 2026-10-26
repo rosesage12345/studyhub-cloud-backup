@@ -437,9 +437,67 @@ table.ebh tr.due td.cycle-due{background:#f59e0b !important;color:#fff;font-weig
 .cd-box .cd-l{font-size:12px;opacity:.95;margin-top:2px}
 @media(max-width:560px){.tb-left{min-width:100%}.cd-box{flex:1;min-width:100%;flex-direction:row;align-items:baseline;gap:10px;justify-content:center}.cd-box .cd-n{font-size:30px}}
 /* 双人课表：iframe isolation */
-.sch-wrap{position:relative;height:100%;margin:-18px}
-.sch-frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#f2f4f8}
-</style>
+.sch{max-width:820px}
+.sch-tabs{display:flex;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px}
+.sch-tabs button{flex:1;border:0;background:transparent;color:var(--text2);font-weight:600;min-height:42px;border-radius:11px;padding:0 6px;cursor:pointer}
+.sch-tabs button.on{background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+.sch-stages{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+.sch-stages::-webkit-scrollbar{display:none}
+.sch-stages button{flex:0 0 auto;padding:8px 14px;border-radius:999px;background:var(--bg);border:1px solid var(--line);color:var(--text2);font-size:13.5px;min-height:40px;cursor:pointer}
+.sch-stages button.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+.sch-hint{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--brand);padding:0 2px 12px}
+.sch-hint::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--brand);flex:none}
+.sch-day{background:var(--card);border:1px solid var(--line);border-radius:16px;margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow)}
+.sch-dh{display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:15px;font-weight:800;border-bottom:1px solid var(--line)}
+.sch-dh i{width:4px;height:14px;border-radius:2px;background:var(--brand);flex:none}
+.sch-dh em{margin-left:auto;font-style:normal;font-size:12px;font-weight:400;color:var(--text2)}
+.sch-dh em.ok{color:var(--ok);font-weight:700}
+.sch-row{display:flex;gap:12px;padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer;align-items:flex-start}
+.sch-row:last-child{border-bottom:0}
+.sch-row:hover{background:var(--bg)}
+.sch-t{flex:0 0 86px;display:flex;flex-direction:column;gap:3px}
+.sch-t b{font-size:13px;color:var(--text);border-left:3px solid var(--c);border-radius:5px;padding:2px 6px;background:var(--bg);font-weight:700}
+.sch-t span{font-size:11px;color:var(--text2);padding-left:2px}
+.sch-i{flex:1;min-width:0}
+.sch-n{font-weight:700;font-size:14.5px;color:var(--c);line-height:1.35}
+.sch-m{font-size:12.5px;color:var(--text2);margin-top:2px}
+.sch-w{font-size:11.5px;color:var(--text2);opacity:.85;margin-top:1px}
+.sch-note{font-size:12.5px;color:var(--text2);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;line-height:1.65;margin-top:4px}
+.sch-best{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-radius:16px;padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.sch-best .sb-l{font-size:12px;opacity:.9}
+.sch-best .sb-m{font-size:19px;font-weight:800;margin-top:3px}
+.sch-best .sb-s{font-size:12.5px;opacity:.92;margin-top:3px}
+.sch-best.none{background:var(--card);color:var(--text2);border:1px dashed var(--line)}
+.sch-best.none .sb-m{font-size:15px;color:var(--text)}
+.sch-best.none .sb-s{font-size:12px}
+.sch-tl{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;padding:11px 13px 6px}
+.sch-tl span{height:20px;border-radius:5px;background:var(--line)}
+.sch-tl span.on{background:var(--ok)}
+.sch-segs{display:flex;flex-wrap:wrap;gap:6px;padding:0 13px 12px}
+.sch-segs b{font-size:12px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:3px 9px}
+.sch-segs .none{font-size:12px;color:var(--text2)}
+.sch-sheet{position:fixed;inset:0;z-index:80;display:none}
+.sch-sheet.open{display:block}
+.ss-mask{position:absolute;inset:0;background:rgba(10,30,26,.42)}
+.ss-body{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:20px 20px 0 0;padding:8px 0 max(16px,env(safe-area-inset-bottom));max-height:76vh;overflow-y:auto;box-shadow:0 -8px 30px rgba(10,40,34,.25);animation:ssUp .22s ease}
+@keyframes ssUp{from{transform:translateY(28px);opacity:.6}to{transform:none;opacity:1}}
+.ss-grab{width:38px;height:4px;border-radius:99px;background:var(--line);margin:6px auto 8px}
+.ss-hd{display:flex;align-items:center;gap:10px;padding:0 18px 10px}
+.ss-hd h3{font-size:16px;font-weight:800;flex:1;margin:0}
+.ss-x{border:0;background:transparent;font-size:22px;line-height:1;color:var(--text2);cursor:pointer;min-height:auto;padding:2px 6px}
+.ss-list{padding:0 18px 6px}
+.sch-sheet .srow{padding:11px 0;font-size:14px}
+.srow{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.srow:last-child{border-bottom:0}
+.srow span{color:var(--text2);flex:none}
+.srow b{text-align:right;font-weight:700;word-break:break-all}
+@media (max-width:560px){
+  .sch-tabs button{font-size:13px;min-height:40px}
+  .sch-t{flex:0 0 72px}
+  .sch-t b{font-size:12px;padding:2px 5px}
+  .sch-n{font-size:14px}
+  .sch-tl span{height:16px}
+}</style>
 </head>
 <body>
 <div class="wrap" id="homeView">
@@ -4515,13 +4573,27 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
 @media (max-width:520px){.grid2{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}}
 .unit{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .15s;position:relative}
+/* 词库列表专用网格：手机上必须单列，双列会把卡片压扁、六个按钮换行乱成一团 */
+.libgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+.unit-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.unit-top b{font-size:16px;color:var(--brand-ink);flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.unit-n{font-size:12px;color:var(--text2);flex:0 0 auto;white-space:nowrap}
+@media (max-width:640px){
+  .cardbox{min-height:230px}
+  .quiz-word,.qw{font-size:34px}
+  .libgrid{grid-template-columns:1fr}
+  .unit{padding:12px 13px}
+  .unit-ops{gap:5px;margin-top:9px}
+  .unit-ops button{padding:5px 10px;min-height:34px;flex:1 1 auto}
+}
 .unit:hover{border-color:var(--brand);transform:translateY(-2px);box-shadow:var(--shadow)}
 .unit b{font-size:16px;color:var(--brand-ink);display:block}
 .unit .meta{font-size:12px;color:var(--text2);margin-top:3px}
 .unit .unit-ops{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
 .unit .unit-ops button{font-size:12px;padding:4px 10px;min-height:32px;border-radius:8px;background:var(--bg);border:1px solid var(--line);color:var(--text2);cursor:pointer;white-space:nowrap;flex:none}
 .unit .unit-ops button:hover{border-color:var(--brand2);color:var(--brand)}
-.unit .unit-ops button.danger:hover{border-color:var(--bad);color:var(--bad)}
+.unit .unit-ops button.danger{color:var(--bad);border-color:var(--bad-soft)}
+.unit-ops button.danger:hover{border-color:var(--bad);background:var(--bad-soft)}
 .imp-hint{background:var(--brand-soft);border-radius:14px;padding:16px;color:var(--brand-ink);font-size:14px;line-height:1.7}
 .badge{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-left:6px;vertical-align:1px}
 .badge.pink{background:var(--pink-soft);color:var(--pink)}
@@ -4980,10 +5052,10 @@ function renderLibs(){
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;openImport()&quot;&gt;导入词表&lt;/button&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;exportAll()&quot;&gt;导出全部&lt;/button&gt;&lt;/div&gt;';
   if(!libs.length){h+='&lt;div class=&quot;imp-hint&quot;&gt;还没有词库。点「新建词库」创建，或用「导入词表」粘贴单词批量导入。&lt;/div&gt;';box.innerHTML=h;return;}
-  h+='&lt;div class=&quot;grid2&quot;&gt;'+libs.map(l=&gt;{
+  h+='&lt;div class=&quot;libgrid&quot;&gt;'+libs.map(l=&gt;{
     const st=libStats(l);
-    return '&lt;div class=&quot;unit&quot; onclick=&quot;enterLib(\''+escAttr(l)+'\')&quot;&gt;&lt;b&gt;'+esc(libDisplay(l))+(l===NO_LIB?'&lt;span class=&quot;badge pink&quot;&gt;不会词&lt;/span&gt;':'')
-      +'&lt;/b&gt;&lt;div class=&quot;meta&quot;&gt;'+st.total+' 词 · 已熟 '+st.mastered+'&lt;/div&gt;'
+    return '&lt;div class=&quot;unit&quot; onclick=&quot;enterLib(\''+escAttr(l)+'\')&quot;&gt;&lt;div class=&quot;unit-top&quot;&gt;&lt;b&gt;'+esc(libDisplay(l))+'&lt;/b&gt;'+(l===NO_LIB?'&lt;span class=&quot;badge pink&quot;&gt;不会词&lt;/span&gt;':'')+'&lt;span class=&quot;unit-n&quot;&gt;'+st.total+' 词 · 已熟 '+st.mastered+'&lt;/span&gt;&lt;/div&gt;'
+      
       +'&lt;div class=&quot;unit-ops&quot;&gt;&lt;button onclick=&quot;event.stopPropagation();libMove(\''+escAttr(l)+'\',-1)&quot;&gt;↑&lt;/button&gt;&lt;button onclick=&quot;event.stopPropagation();libMove(\''+escAttr(l)+'\',1)&quot;&gt;↓&lt;/button&gt;&lt;button onclick=&quot;event.stopPropagation();enterLib(\''+escAttr(l)+'\')&quot;&gt;查看&lt;/button&gt;'
       +(l===NO_LIB?'':'&lt;button onclick=&quot;event.stopPropagation();libRename(\''+escAttr(l)+'\')&quot;&gt;重命名&lt;/button&gt;')
       +(l===NO_LIB?'':'&lt;button onclick=&quot;event.stopPropagation();cardMigrateLib(\''+escAttr(l)+'\')&quot;&gt;迁移&lt;/button&gt;')
@@ -7858,667 +7930,216 @@ function render(){
   +'</div>';
 }
 /* ===== 双人课表：整页嵌入工具视图（iframe 隔离样式）===== */
-const SCH_SRCDOC=`<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>双人课表</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232f6fed'/%3E%3Crect x='24' y='22' width='52' height='52' rx='8' fill='none' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M36 22v14M64 22v14M22 42h56' stroke='%23fff' stroke-width='6'/%3E%3C/svg%3E">
-<style>
-  :root{
-    --bg:#f2f4f8; --card:#fff; --ink:#1a1d26; --muted:#8a8f9c; --line:#eceef3;
-    --mine:#2f6fed; --her:#ff6b9d; --free:#16a34a; --freeOn:#22c55e;
-  }
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html{-webkit-text-size-adjust:100%;}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-    background:linear-gradient(180deg,#f6f8fc 0%,var(--bg) 240px); color:var(--ink); padding-bottom:64px;
-  }
-  .app{max-width:480px;margin:0 auto;padding:18px 14px 0;}
-
-  header{background:var(--card);border-radius:20px;padding:16px 18px 14px;margin-bottom:14px;
-    box-shadow:0 2px 12px rgba(31,42,84,.05);}
-  .h-row{display:flex;align-items:center;gap:12px;}
-  .logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#2f6fed,#6aa2ff);
-    display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
-  .logo svg{width:24px;height:24px;}
-  h1{font-size:20px;font-weight:800;letter-spacing:.3px;}
-  .sub{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5;}
-  .people{display:flex;gap:8px;margin-top:12px;}
-  .p{flex:1;display:flex;align-items:center;gap:8px;background:#f7f9fd;border-radius:12px;padding:8px 10px;}
-  .p .av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    font-size:13px;font-weight:800;color:#fff;flex:0 0 auto;}
-  .p.me .av{background:linear-gradient(135deg,#2f6fed,#6aa2ff);}
-  .p.her .av{background:linear-gradient(135deg,#ff6b9d,#ff9dc0);}
-  .p .pt{font-size:13px;font-weight:700;line-height:1.25;}
-  .p .pd{font-size:11px;color:var(--muted);margin-top:1px;}
-
-  .main-tabs{display:flex;gap:6px;background:#e8ecf3;border-radius:14px;padding:4px;margin-bottom:14px;}
-  .mtab{flex:1;text-align:center;padding:10px 0;border-radius:11px;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;transition:all .15s;}
-  .mtab.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(31,42,84,.08);}
-
-  .view{display:none;}
-  .view.on{display:block;}
-
-  /* 阶段标签 */
-  .stagebar{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
-  .stagebar::-webkit-scrollbar{display:none;}
-  .stage-tab{flex:0 0 auto;padding:9px 15px;border-radius:999px;background:#e8ecf3;font-size:13.5px;color:#6b7280;border:none;cursor:pointer;font-family:inherit;white-space:nowrap;}
-  .stage-tab.on{background:var(--ink);color:#fff;font-weight:700;}
-  .week-hint{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mine);padding:0 2px 12px;}
-  .week-hint .dot{width:7px;height:7px;border-radius:50%;background:var(--mine);flex:0 0 auto;}
-
-  /* 按天卡片（我的/她的课表） */
-  .day{background:var(--card);border-radius:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(31,42,84,.04);overflow:hidden;}
-  .day-hd{display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:15px;font-weight:800;border-bottom:1px solid var(--line);}
-  .day-hd .bar{width:4px;height:14px;border-radius:2px;background:var(--mine);flex:0 0 auto;}
-  .view-her .day-hd .bar{background:var(--her);}
-  .day-hd .free{font-size:12px;color:#b0b4c0;font-weight:400;margin-left:auto;}
-  .cls{display:flex;gap:10px;padding:11px 13px;border-bottom:1px solid #f3f5f9;cursor:pointer;}
-  .cls:last-child{border-bottom:none;}
-  .cls:active{background:#fafbfe;}
-  .cls-time{flex:0 0 78px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f3f5fa;border-radius:10px;padding:8px 4px;min-height:56px;}
-  .cls-sec{font-size:13px;font-weight:800;color:#333;}
-  .cls-time-txt{font-size:11px;color:#8a8f9c;margin-top:4px;line-height:1.35;text-align:center;}
-  .cls-info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;}
-  .cls-name{font-size:15px;font-weight:700;line-height:1.4;}
-  .cls-meta{display:flex;flex-wrap:wrap;gap:3px 8px;margin-top:6px;font-size:13px;color:#555;line-height:1.4;}
-  .cls-wk{display:inline-flex;align-items:center;margin-top:6px;align-self:flex-start;font-size:12px;font-weight:600;color:#555;background:#f3f5fa;border-radius:6px;padding:2px 8px;line-height:1.5;}
-
-  /* 我的课程配色 */
-  .c1{background:#FFF3E0;}.c1 .cls-name{color:#BF360C;}
-  .c2{background:#E3F2FD;}.c2 .cls-name{color:#0D47A1;}
-  .c3{background:#E8F5E9;}.c3 .cls-name{color:#1B5E20;}
-  .c4{background:#F3E5F5;}.c4 .cls-name{color:#4A148C;}
-  .c5{background:#FFEBEE;}.c5 .cls-name{color:#B71C1C;}
-  .c6{background:#FFF8E1;}.c6 .cls-name{color:#B26A00;}
-  .c7{background:#E0F7FA;}.c7 .cls-name{color:#006064;}
-  .c8{background:#FCE4EC;}.c8 .cls-name{color:#880E4F;}
-  .c9{background:#FFE0B2;}.c9 .cls-name{color:#E65100;}
-  .c10{background:#E8EAF6;}.c10 .cls-name{color:#1A237E;}
-  .c11{background:#EFEBE9;}.c11 .cls-name{color:#5D4037;}
-  /* 她的课程配色 */
-  .h1{background:#E0F2F1;}.h1 .cls-name{color:#004D40;}
-  .h2{background:#FCE4EC;}.h2 .cls-name{color:#880E4F;}
-  .h3{background:#E8EAF6;}.h3 .cls-name{color:#1A237E;}
-  .h4{background:#FFF3E0;}.h4 .cls-name{color:#E65100;}
-  .h5{background:#E0F7FA;}.h5 .cls-name{color:#006064;}
-  .h6{background:#F3E5F5;}.h6 .cls-name{color:#4A148C;}
-  .h7{background:#E8F5E9;}.h7 .cls-name{color:#1B5E20;}
-
-  .note{background:var(--card);border-radius:16px;padding:13px 14px;margin-bottom:12px;font-size:13px;color:#666;line-height:1.7;}
-  .note b{color:#333;}
-
-  /* ===== 一起有空 ===== */
-  .best-card{
-    background:linear-gradient(135deg,#16a34a,#3ecf6e);border-radius:16px;padding:16px 16px 14px;
-    color:#fff;margin-bottom:12px;box-shadow:0 4px 14px rgba(22,163,74,.25);
-  }
-  .bc-label{font-size:11px;font-weight:700;letter-spacing:1px;opacity:.85;}
-  .bc-main{font-size:22px;font-weight:800;margin-top:5px;line-height:1.3;}
-  .bc-sub{font-size:13px;opacity:.92;margin-top:4px;line-height:1.5;}
-
-  .free-day{background:var(--card);border-radius:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(31,42,84,.04);padding:12px 14px;}
-  .fd-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
-  .fd-day{font-size:14px;font-weight:800;}
-  .fd-count{font-size:11px;font-weight:700;color:var(--free);background:#E8F7EE;border-radius:6px;padding:2px 8px;}
-  .fd-count.none{color:#b0b4c0;background:#f1f3f8;}
-  .tl{display:flex;gap:2px;height:26px;border-radius:7px;overflow:hidden;}
-  .tl-seg{flex:1;cursor:pointer;transition:transform .1s;}
-  .tl-seg.on{background:var(--freeOn);}
-  .tl-seg.off{background:#e7eaf1;}
-  .tl-seg:active{transform:scaleY(.9);}
-  .fd-pills{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;}
-  .pill{background:#E8F7EE;color:#15803d;font-weight:700;font-size:12.5px;border-radius:8px;padding:4px 10px;cursor:pointer;}
-  .pill:active{background:#d4efe0;}
-  .fd-none{font-size:12.5px;color:#b0b4c0;margin-top:8px;}
-  .tl-tick{display:flex;gap:2px;margin-top:4px;}
-  .tk{flex:1;font-size:9px;color:#c2c7d2;text-align:center;}
-  .tk.b{color:#9aa1b0;font-weight:700;}
-  .tk.m{color:#b9bfcc;}
-  .free-tip{font-size:12px;color:var(--muted);line-height:1.6;margin-top:12px;padding:0 4px;}
-
-  /* 底部弹窗 */
-  .sheet{position:fixed;inset:0;z-index:50;display:none;}
-  .sheet.open{display:block;}
-  .sheet-mask{position:absolute;inset:0;background:rgba(15,20,35,.5);}
-  .sheet-body{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;padding:22px 20px 34px;max-width:480px;margin:0 auto;transform:translateY(100%);transition:transform .22s ease;}
-  .sheet.open .sheet-body{transform:translateY(0);}
-  .sheet-grab{width:36px;height:4px;border-radius:2px;background:#e2e2e6;margin:0 auto 16px;}
-  .sheet-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
-  .sheet-name{font-size:19px;font-weight:800;line-height:1.4;}
-  .sheet-close{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:#f2f4f8;border:none;font-size:16px;color:#666;cursor:pointer;font-family:inherit;line-height:1;}
-  .sheet-list{margin-top:16px;}
-  .sheet-item{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #f1f3f8;font-size:14px;}
-  .sheet-item:last-child{border-bottom:none;}
-  .sheet-item .k{color:#999;flex:0 0 auto;}
-  .sheet-item .v{color:#222;text-align:right;font-weight:600;line-height:1.45;}
-  .sheet-tip{margin-top:14px;font-size:12px;color:#b0b4c0;line-height:1.6;}
-</style>
-</head>
-<body>
-<div class="app">
-  <header>
-    <div class="h-row">
-      <div class="logo">
-        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="3" stroke="#fff" stroke-width="2"/><path d="M3 9h18M8 4v3M16 4v3" stroke="#fff" stroke-width="2"/><path d="M8 14l2.5 2.5L16 12" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-      <div>
-        <h1>双人课表</h1>
-        <p class="sub">我的课表按结课分阶段 · 她的课表每周固定</p>
-      </div>
-    </div>
-    <div class="people">
-      <div class="p me"><div class="av">我</div><div><div class="pt">我 · 制药专升本2601</div><div class="pd">知行楼 / 思源楼</div></div></div>
-      <div class="p her"><div class="av">她</div><div><div class="pt">她 · 计算机类</div><div class="pd">第1周整理 · 每周固定</div></div></div>
-    </div>
-  </header>
-
-  <div class="main-tabs">
-    <div class="mtab" data-v="mine">我的课表</div>
-    <div class="mtab on" data-v="together">一起有空</div>
-    <div class="mtab" data-v="her">她的课表</div>
-  </div>
-
-  <!-- ===== 我的课表 ===== -->
-  <div class="view view-mine" id="vMine">
-    <div class="stagebar" id="stageBarMine"></div>
-    <div class="week-hint" id="weekHintMine"></div>
-    <div id="mainMine"></div>
-  </div>
-
-  <!-- ===== 一起有空 ===== -->
-  <div class="view view-together on" id="vTogether">
-    <div class="stagebar" id="stageBarFree"></div>
-    <div class="week-hint" id="weekHintFree"></div>
-    <div id="freeMain"></div>
-  </div>
-
-  <!-- ===== 她的课表 ===== -->
-  <div class="view view-her" id="vHer">
-    <div id="mainHer"></div>
-  </div>
-
-  <div class="note" style="margin-top:2px;">她的课表来自第1周（8/31-9/4）截图，默认每周固定；若实际课程有单双周变化，告诉我再调整。绿色 = 两人都空闲，点时间条或时段可看当天两人详情。</div>
-</div>
-
-<div class="sheet" id="sheet">
-  <div class="sheet-mask" id="sheetMask"></div>
-  <div class="sheet-body">
-    <div class="sheet-grab"></div>
-    <div class="sheet-hd">
-      <div class="sheet-name" id="shName"></div>
-      <button class="sheet-close" id="shClose" aria-label="关闭">×</button>
-    </div>
-    <div class="sheet-list" id="shList"></div>
-    <div class="sheet-tip" id="shTip"></div>
-  </div>
-</div>
-
-<script>
-/* ===== 数据 ===== */
-const TERM_START = new Date('2026-09-07T00:00:00');
-const SEC_TIME = {1:'08:00-08:45',2:'08:50-09:35',3:'10:00-10:45',4:'10:50-11:35',5:'13:30-14:15',6:'14:20-15:05',7:'15:30-16:15',8:'16:20-17:05',9:'18:00-18:45',10:'18:50-19:35',11:'20:00-20:45',12:'20:50-21:35'};
-const DAYS = ['周一','周二','周三','周四','周五'];
-const TL_TICKS = [{s:1,n:2,c:''},{s:3,n:2,c:'午'},{s:5,n:2,c:''},{s:7,n:2,c:'晚'},{s:9,n:2,c:''},{s:11,n:2,c:''}];
-
-const COURSES = {
-  a:{name:'药品生产质量管理工程',code:'25HG31208',weeks:'1-8周',teacher:'杨若冰',color:'c1'},
-  b:{name:'有机化学',code:'25HG21003Z',weeks:'1-12周',teacher:'刘钰君',color:'c2'},
-  c:{name:'生物化学',code:'25HG31205',weeks:'7-16周',teacher:'陶云昌',color:'c3'},
-  d:{name:'专创融合训练（制药）',code:'25HG51201',weeks:'9-14周',teacher:'周德英',color:'c4'},
-  e:{name:'习近平新时代中国特色社会主义思想概论',code:'25MY11005Z',weeks:'1-12周',teacher:'张诗琦',color:'c5'},
-  f:{name:'药物合成',code:'25HG31207',weeks:'1-10周',teacher:'陶云昌',color:'c6'},
-  g:{name:'化工仪表及智能化控制',code:'25HG31111',weeks:'1-8周',teacher:'徐良',color:'c7'},
-  h:{name:'中药制药基础',code:'25HG32202',weeks:'1-8周',teacher:'霍思含',color:'c8'},
-  i:{name:'化工原理',code:'25HG21002Z',weeks:'1-16周',teacher:'徐良',color:'c9'},
-  j:{name:'化工制图',code:'25HG31118',weeks:'9-16周',teacher:'郭文旋',color:'c10'},
-  k:{name:'化工原理课程设计',code:'浅课程',weeks:'15-16周',teacher:'徐良',color:'c11'}
+/* ================= 双人课表（原生实现，融入学习台自己的风格）=================
+   说明：不再用 iframe 搬运参考文件 —— 参考文件只是数据来源，界面按学习台的
+   配色与组件重新做，三个视图顺序：我的课表 → 她的课表 → 双人空闲时间。 */
+const SCH_TERM_START=new Date('2026-09-07T00:00:00');
+const SCH_SEC={1:'08:00-08:45',2:'08:50-09:35',3:'10:00-10:45',4:'10:50-11:35',5:'13:30-14:15',6:'14:20-15:05',7:'15:30-16:15',8:'16:20-17:05',9:'18:00-18:45',10:'18:50-19:35',11:'20:00-20:45',12:'20:50-21:35'};
+const SCH_DAYS=['周一','周二','周三','周四','周五'];
+const SCH_MY={
+ a:{name:'药品生产质量管理工程',code:'25HG31208',weeks:'1-8周',teacher:'杨若冰'},
+ b:{name:'有机化学',code:'25HG21003Z',weeks:'1-12周',teacher:'刘钰君'},
+ c:{name:'生物化学',code:'25HG31205',weeks:'7-16周',teacher:'陶云昌'},
+ d:{name:'专创融合训练（制药）',code:'25HG51201',weeks:'9-14周',teacher:'周德英'},
+ e:{name:'习近平新时代中国特色社会主义思想概论',code:'25MY11005Z',weeks:'1-12周',teacher:'张诗琦'},
+ f:{name:'药物合成',code:'25HG31207',weeks:'1-10周',teacher:'陶云昌'},
+ g:{name:'化工仪表及智能化控制',code:'25HG31111',weeks:'1-8周',teacher:'徐良'},
+ h:{name:'中药制药基础',code:'25HG32202',weeks:'1-8周',teacher:'霍思含'},
+ i:{name:'化工原理',code:'25HG21002Z',weeks:'1-16周',teacher:'徐良'},
+ j:{name:'化工制图',code:'25HG31118',weeks:'9-16周',teacher:'郭文旋'},
+ k:{name:'化工原理课程设计',code:'浅课程',weeks:'15-16周',teacher:'徐良'}
 };
-
-const HER_COURSES = {
-  j1:{name:'Java语言程序设计（A）',code:'',weeks:'每周固定',teacher:'王全新',color:'h1'},
-  xg:{name:'习近平新时代中国特色社会主义思想概论',code:'',weeks:'每周固定',teacher:'蔡畅',color:'h2'},
-  sj:{name:'数据结构（B）',code:'',weeks:'每周固定',teacher:'李昕',color:'h3'},
-  web:{name:'Web前端开发',code:'',weeks:'每周固定',teacher:'刘音',color:'h4'},
-  os:{name:'操作系统',code:'',weeks:'每周固定',teacher:'王玉博',color:'h5'},
-  se:{name:'软件工程（B）',code:'',weeks:'每周固定',teacher:'茹美玉',color:'h6'},
-  db:{name:'数据库原理',code:'',weeks:'每周固定',teacher:'刘文瑛',color:'h7'}
+const SCH_HER={
+ j1:{name:'Java语言程序设计（A）',weeks:'每周固定',teacher:'王全新'},
+ xg:{name:'习近平新时代中国特色社会主义思想概论',weeks:'每周固定',teacher:'蔡畅'},
+ sj:{name:'数据结构（B）',weeks:'每周固定',teacher:'李昕'},
+ web:{name:'Web前端开发',weeks:'每周固定',teacher:'刘音'},
+ os:{name:'操作系统',weeks:'每周固定',teacher:'王玉博'},
+ se:{name:'软件工程（B）',weeks:'每周固定',teacher:'茹美玉'},
+ db:{name:'数据库原理',weeks:'每周固定',teacher:'刘文瑛'}
 };
-
-const HER_WEEK = [
-  {day:'周一',slots:[
-    {sec:'7-8节',time:'15:30-17:05',key:'j1',loc:'计算机基础实验室-3(505-506)'},
-    {sec:'9节',time:'18:00-18:45',key:'os',loc:'思源楼-323'},
-    {sec:'11节',time:'20:00-20:45',key:'se',loc:'知行楼C308-智慧教室'}
-  ]},
-  {day:'周二',slots:[
-    {sec:'1-2节',time:'08:00-09:35',key:'xg',loc:'思源楼-324'},
-    {sec:'3-4节',time:'10:00-11:35',key:'sj',loc:'知行楼-C107-智慧教室'},
-    {sec:'9节',time:'18:00-18:45',key:'web',loc:'第二实验楼仿真实验室-108'},
-    {sec:'11节',time:'20:00-20:45',key:'db',loc:'思源楼-433'}
-  ]},
-  {day:'周三',slots:[
-    {sec:'7-8节',time:'15:30-17:05',key:'j1',loc:'计算机基础实验室-4(509-510)'},
-    {sec:'9节',time:'18:00-18:45',key:'web',loc:'第二实验楼仿真实验室-108'},
-    {sec:'11节',time:'20:00-20:45',key:'db',loc:'思源楼-433'}
-  ]},
-  {day:'周四',slots:[
-    {sec:'5-6节',time:'13:30-15:05',key:'web',loc:'第二实验楼仿真实验室-108'},
-    {sec:'7-8节',time:'15:30-17:05',key:'xg',loc:'思源楼239-智慧教室'},
-    {sec:'9节',time:'18:00-18:45',key:'os',loc:'知行楼-A105'},
-    {sec:'11节',time:'20:00-20:45',key:'sj',loc:'思源楼-331'}
-  ]},
-  {day:'周五',slots:[
-    {sec:'1-2节',time:'08:00-09:35',key:'j1',loc:'计算机基础实验室-4(509-510)'},
-    {sec:'7节',time:'15:30-16:15',key:'se',loc:'知行楼'}
-  ]}
+const SS=(sec,time,key,loc)=>({sec:sec,time:time,key:key,loc:loc});
+const SCH_STAGES=[
+ {label:'第1-6周',note:'生物化学（第7周开）、专创融合训练与化工制图（第9周开）此时段为空',days:[
+  {day:'周一',slots:[SS('1-2节','08:00-09:35','a','知行楼-C101'),SS('5-6节','13:30-15:05','e','知行楼-A105'),SS('7-8节','15:30-17:05','g','知行楼-C101')]},
+  {day:'周二',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('5-6节','13:30-15:05','f','知行楼-C201'),SS('7-8节','15:30-17:05','h','知行楼-C201')]},
+  {day:'周三',slots:[SS('1-2节','08:00-09:35','a','知行楼-C101'),SS('5-6节','13:30-15:05','e','思源楼-133'),SS('7-8节','15:30-17:05','g','知行楼-C101'),SS('9-10节','18:00-19:35','i','知行楼-C301')]},
+  {day:'周四',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('5-6节','13:30-15:05','f','知行楼-C201'),SS('7-8节','15:30-17:05','h','知行楼-C301')]},
+  {day:'周五',slots:[SS('3-4节','10:00-11:35','i','知行楼-C101')]}
+ ]},
+ {label:'第7-8周',note:'生物化学本周开课（周一、周三 3-4节）',days:[
+  {day:'周一',slots:[SS('1-2节','08:00-09:35','a','知行楼-C101'),SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('5-6节','13:30-15:05','e','知行楼-A105'),SS('7-8节','15:30-17:05','g','知行楼-C101')]},
+  {day:'周二',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('5-6节','13:30-15:05','f','知行楼-C201'),SS('7-8节','15:30-17:05','h','知行楼-C201')]},
+  {day:'周三',slots:[SS('1-2节','08:00-09:35','a','知行楼-C101'),SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('5-6节','13:30-15:05','e','思源楼-133'),SS('7-8节','15:30-17:05','g','知行楼-C101'),SS('9-10节','18:00-19:35','i','知行楼-C301')]},
+  {day:'周四',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('5-6节','13:30-15:05','f','知行楼-C201'),SS('7-8节','15:30-17:05','h','知行楼-C301')]},
+  {day:'周五',slots:[SS('3-4节','10:00-11:35','i','知行楼-C101')]}
+ ]},
+ {label:'第9-10周',note:'药品生产质量管理工程、化工仪表及智能化控制、中药制药基础已于第8周结课；专创融合训练、化工制图本周开课',days:[
+  {day:'周一',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('5-6节','13:30-15:05','e','知行楼-A105')]},
+  {day:'周二',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('3-4节','10:00-11:35','d','知行楼-C301'),SS('5-6节','13:30-15:05','f','知行楼-C201')]},
+  {day:'周三',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('5-6节','13:30-15:05','e','思源楼-133'),SS('9-10节','18:00-19:35','i','知行楼-C301'),SS('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+  {day:'周四',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('3-4节','10:00-11:35','d','知行楼-C301'),SS('5-6节','13:30-15:05','f','知行楼-C201')]},
+  {day:'周五',slots:[SS('3-4节','10:00-11:35','i','知行楼-C101')]}
+ ]},
+ {label:'第11-12周',note:'药物合成已于第10周结课',days:[
+  {day:'周一',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('5-6节','13:30-15:05','e','知行楼-A105')]},
+  {day:'周二',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('3-4节','10:00-11:35','d','知行楼-C301')]},
+  {day:'周三',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('5-6节','13:30-15:05','e','思源楼-133'),SS('9-10节','18:00-19:35','i','知行楼-C301'),SS('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+  {day:'周四',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('3-4节','10:00-11:35','d','知行楼-C301')]},
+  {day:'周五',slots:[SS('3-4节','10:00-11:35','i','知行楼-C101')]}
+ ]},
+ {label:'第13-14周',note:'有机化学、习近平新时代中国特色社会主义思想概论已于第12周结课',days:[
+  {day:'周一',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101')]},
+  {day:'周二',slots:[SS('3-4节','10:00-11:35','d','知行楼-C301')]},
+  {day:'周三',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('9-10节','18:00-19:35','i','知行楼-C301'),SS('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+  {day:'周四',slots:[SS('3-4节','10:00-11:35','d','知行楼-C301')]},
+  {day:'周五',slots:[SS('3-4节','10:00-11:35','i','知行楼-C101')]}
+ ]},
+ {label:'第15-16周',note:'专创融合训练已于第14周结课；化工原理课程设计（浅课程，徐良老师，共2周）安排在15-16周，时间以老师通知为准',days:[
+  {day:'周一',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101')]},
+  {day:'周三',slots:[SS('3-4节','10:00-11:35','c','知行楼-C101'),SS('9-10节','18:00-19:35','i','知行楼-C301'),SS('11-12节','20:00-21:35','j','第一实验楼-C105')]},
+  {day:'周五',slots:[SS('3-4节','10:00-11:35','i','知行楼-C101')]}
+ ]}
 ];
-
-const SLOT = (sec,time,key,loc)=>({sec,time,key,loc});
-const STAGES = [
-  {
-    label:'第1-6周',
-    days:[
-      {day:'周一',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105'),SLOT('7-8节','15:30-17:05','g','知行楼-C101')]},
-      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C201')]},
-      {day:'周三',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('7-8节','15:30-17:05','g','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301')]},
-      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C301')]},
-      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
-    ],
-    note:'生物化学（第7周开）、专创融合训练（第9周开）、化工制图（第9周开）此时段为空'
-  },
-  {
-    label:'第7-8周',
-    days:[
-      {day:'周一',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105'),SLOT('7-8节','15:30-17:05','g','知行楼-C101')]},
-      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C201')]},
-      {day:'周三',slots:[SLOT('1-2节','08:00-09:35','a','知行楼-C101'),SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('7-8节','15:30-17:05','g','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301')]},
-      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('5-6节','13:30-15:05','f','知行楼-C201'),SLOT('7-8节','15:30-17:05','h','知行楼-C301')]},
-      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
-    ],
-    note:'生物化学本周开课（周一、周三 3-4节）'
-  },
-  {
-    label:'第9-10周',
-    days:[
-      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105')]},
-      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301'),SLOT('5-6节','13:30-15:05','f','知行楼-C201')]},
-      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
-      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301'),SLOT('5-6节','13:30-15:05','f','知行楼-C201')]},
-      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
-    ],
-    note:'药品生产质量管理工程、化工仪表及智能化控制、中药制药基础已于第8周结课；专创融合训练（制药）、化工制图本周开课'
-  },
-  {
-    label:'第11-12周',
-    days:[
-      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','知行楼-A105')]},
-      {day:'周二',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
-      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('5-6节','13:30-15:05','e','思源楼-133'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
-      {day:'周四',slots:[SLOT('1-2节','08:00-09:35','b','知行楼-C202'),SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
-      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
-    ],
-    note:'药物合成已于第10周结课'
-  },
-  {
-    label:'第13-14周',
-    days:[
-      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101')]},
-      {day:'周二',slots:[SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
-      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
-      {day:'周四',slots:[SLOT('3-4节','10:00-11:35','d','知行楼-C301')]},
-      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
-    ],
-    note:'有机化学、习近平新时代中国特色社会主义思想概论已于第12周结课'
-  },
-  {
-    label:'第15-16周',
-    days:[
-      {day:'周一',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101')]},
-      {day:'周三',slots:[SLOT('3-4节','10:00-11:35','c','知行楼-C101'),SLOT('9-10节','18:00-19:35','i','知行楼-C301'),SLOT('11-12节','20:00-21:35','j','第一实验楼-C105')]},
-      {day:'周五',slots:[SLOT('3-4节','10:00-11:35','i','知行楼-C101')]}
-    ],
-    note:'专创融合训练已于第14周结课；化工原理课程设计（浅课程，徐良老师，共2周）安排在15-16周，时间以老师通知为准'
-  }
+const SCH_HER_WEEK=[
+ {day:'周一',slots:[SS('7-8节','15:30-17:05','j1','计算机基础实验室-3(505-506)'),SS('9节','18:00-18:45','os','思源楼-323'),SS('11节','20:00-20:45','se','知行楼C308-智慧教室')]},
+ {day:'周二',slots:[SS('1-2节','08:00-09:35','xg','思源楼-324'),SS('3-4节','10:00-11:35','sj','知行楼-C107-智慧教室'),SS('9节','18:00-18:45','web','第二实验楼仿真实验室-108'),SS('11节','20:00-20:45','db','思源楼-433')]},
+ {day:'周三',slots:[SS('7-8节','15:30-17:05','j1','计算机基础实验室-4(509-510)'),SS('9节','18:00-18:45','web','第二实验楼仿真实验室-108'),SS('11节','20:00-20:45','db','思源楼-433')]},
+ {day:'周四',slots:[SS('5-6节','13:30-15:05','web','第二实验楼仿真实验室-108'),SS('7-8节','15:30-17:05','xg','思源楼239-智慧教室'),SS('9节','18:00-18:45','os','知行楼-A105'),SS('11节','20:00-20:45','sj','思源楼-331')]},
+ {day:'周五',slots:[SS('1-2节','08:00-09:35','j1','计算机基础实验室-4(509-510)'),SS('7节','15:30-16:15','se','知行楼')]}
 ];
-
-/* ===== 工具 ===== */
-function currentWeek(){
-  const diff = Math.floor((new Date() - TERM_START) / 86400000);
-  return diff < 0 ? 1 : Math.floor(diff / 7) + 1;
+const SCH_HUES=['#0d9488','#2563eb','#d97706','#db2777','#7c3aed','#0891b2','#65a30d','#dc2626','#4f46e5','#059669','#c026d3'];
+const SCH_HERS=['#db2777','#9333ea','#0891b2','#2563eb','#059669','#d97706','#4f46e5'];
+function schHash(s){ let h=0; s=String(s); for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
+function schColor(key,isHer){
+  if(isHer) return SCH_HERS[schHash(key)%SCH_HERS.length];
+  const ks=Object.keys(SCH_MY); const i=ks.indexOf(key);
+  return SCH_HUES[(i<0?schHash(key):i)%SCH_HUES.length];
 }
-function stageIndexForWeek(w){
-  if (w <= 6) return 0;
-  if (w <= 8) return 1;
-  if (w <= 10) return 2;
-  if (w <= 12) return 3;
-  if (w <= 14) return 4;
-  return 5;
-}
-function secRange(sec){
-  const m = sec.match(/\d+/g);
-  if (!m) return [];
-  if (m.length === 1) return [+m[0]];
-  const a = +m[0], b = +m[1];
-  const r = [];
-  for (let i = a; i <= b; i++) r.push(i);
-  return r;
-}
-function stageBusy(idx){
-  const map = {};
-  DAYS.forEach(d => map[d] = new Set());
-  STAGES[idx].days.forEach(dd => dd.slots.forEach(sl => secRange(sl.sec).forEach(n => map[dd.day].add(n))));
-  return map;
-}
-const herBusyMap = (() => {
-  const map = {};
-  DAYS.forEach(d => map[d] = new Set());
-  HER_WEEK.forEach(dd => dd.slots.forEach(sl => secRange(sl.sec).forEach(n => map[dd.day].add(n))));
-  return map;
-})();
-function mergeSecs(list){
-  if (!list.length) return [];
-  const res = [];
-  let start = list[0], prev = list[0];
-  for (let i = 1; i <= list.length; i++) {
-    const cur = list[i];
-    if (cur !== prev + 1) {
-      res.push(start === prev ? start + '节' : start + '-' + prev + '节');
-      start = cur;
-    }
-    prev = cur;
-  }
-  return res;
-}
-function parseSeg(seg){
-  const p = seg.replace('节','').split('-').map(Number);
-  return p.length > 1 ? p : [p[0], p[0]];
-}
-function segTime(seg){
-  const [a, b] = parseSeg(seg);
-  return a === b ? SEC_TIME[a] : SEC_TIME[a].split('-')[0] + ' - ' + SEC_TIME[b].split('-')[1];
-}
-
-/* ===== 视图切换 ===== */
-document.querySelectorAll('.mtab').forEach(t => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.mtab').forEach(x => x.classList.remove('on'));
-    document.querySelectorAll('.view').forEach(x => x.classList.remove('on'));
-    t.classList.add('on');
-    const v = t.dataset.v;
-    document.getElementById('v' + v.charAt(0).toUpperCase() + v.slice(1)).classList.add('on');
-  });
-});
-
-/* ===== 我的课表 ===== */
-let mineIdx = stageIndexForWeek(currentWeek());
-function renderStageBarMine(){
-  const bar = document.getElementById('stageBarMine');
-  bar.innerHTML = '';
-  STAGES.forEach((s, i) => {
-    const b = document.createElement('button');
-    b.className = 'stage-tab' + (i === mineIdx ? ' on' : '');
-    b.textContent = s.label;
-    b.addEventListener('click', () => { mineIdx = i; renderMine(); renderFree(); });
-    bar.appendChild(b);
-  });
-  const w = currentWeek();
-  document.getElementById('weekHintMine').innerHTML = w >= 17
-    ? '<span class="dot"></span>本学期正课已于第16周结束，当前进入复习考试阶段'
-    : '<span class="dot"></span>现在是第 ' + w + ' 周，对应阶段已为你标出';
-}
-function renderMine(){
-  renderStageBarMine();
-  const main = document.getElementById('mainMine');
-  main.innerHTML = '';
-  const s = STAGES[mineIdx];
-  s.days.forEach(d => {
-    const day = document.createElement('section');
-    day.className = 'day';
-    const hd = document.createElement('div');
-    hd.className = 'day-hd';
-    hd.innerHTML = '<span class="bar"></span>' + d.day + (d.slots.length === 0 ? '<span class="free">无课</span>' : '');
-    day.appendChild(hd);
-    d.slots.forEach(slot => {
-      const c = COURSES[slot.key];
-      const cls = document.createElement('div');
-      cls.className = 'cls ' + c.color;
-      cls.innerHTML = '<div class="cls-time"><div class="cls-sec">' + slot.sec + '</div><div class="cls-time-txt">' + slot.time + '</div></div>' +
-        '<div class="cls-info"><div class="cls-name"></div><div class="cls-meta"><span class="m">' + slot.loc + '</span><span class="m">' + c.teacher + '</span></div><div class="cls-wk">' + c.weeks + '</div></div>';
-      cls.querySelector('.cls-name').textContent = c.name;
-      cls.addEventListener('click', () => openCourseSheet(c, slot, false));
-      day.appendChild(cls);
-    });
-    main.appendChild(day);
-  });
-  const note = document.createElement('div');
-  note.className = 'note';
-  note.innerHTML = '<b>本阶段说明：</b>' + s.note;
-  main.appendChild(note);
-}
-
-/* ===== 她的课表 ===== */
-function renderHer(){
-  const main = document.getElementById('mainHer');
-  main.innerHTML = '';
-  HER_WEEK.forEach(d => {
-    const day = document.createElement('section');
-    day.className = 'day';
-    const hd = document.createElement('div');
-    hd.className = 'day-hd';
-    hd.innerHTML = '<span class="bar"></span>' + d.day + (d.slots.length === 0 ? '<span class="free">无课</span>' : '');
-    day.appendChild(hd);
-    d.slots.forEach(slot => {
-      const c = HER_COURSES[slot.key];
-      const cls = document.createElement('div');
-      cls.className = 'cls ' + c.color;
-      cls.innerHTML = '<div class="cls-time"><div class="cls-sec">' + slot.sec + '</div><div class="cls-time-txt">' + slot.time + '</div></div>' +
-        '<div class="cls-info"><div class="cls-name"></div><div class="cls-meta"><span class="m">' + slot.loc + '</span><span class="m">' + c.teacher + '</span></div><div class="cls-wk">' + c.weeks + '</div></div>';
-      cls.querySelector('.cls-name').textContent = c.name;
-      cls.addEventListener('click', () => openCourseSheet(c, slot, true));
-      day.appendChild(cls);
-    });
-    main.appendChild(day);
-  });
-}
-
-/* ===== 一起有空 ===== */
-function renderStageBarFree(){
-  const bar = document.getElementById('stageBarFree');
-  bar.innerHTML = '';
-  STAGES.forEach((s, i) => {
-    const b = document.createElement('button');
-    b.className = 'stage-tab' + (i === mineIdx ? ' on' : '');
-    b.textContent = s.label;
-    b.addEventListener('click', () => { mineIdx = i; renderMine(); renderFree(); });
-    bar.appendChild(b);
-  });
-  const w = currentWeek();
-  document.getElementById('weekHintFree').innerHTML = w >= 17
-    ? '<span class="dot"></span>本学期正课已结束，以下为最后两周（15-16周）参考'
-    : '<span class="dot"></span>现在是第 ' + w + ' 周 · 绿色 = 两人都空闲';
-}
-function renderFree(){
-  renderStageBarFree();
-  const main = document.getElementById('freeMain');
-  main.innerHTML = '';
-  const myMap = stageBusy(mineIdx);
-
-  // 每天空闲节次
-  const dayFree = {};
-  DAYS.forEach(d => {
-    const list = [];
-    for (let s = 1; s <= 12; s++) {
-      if (!myMap[d].has(s) && !herBusyMap[d].has(s)) list.push(s);
-    }
-    dayFree[d] = list;
-  });
-
-  // 推荐：连续空闲最长
-  let best = null;
-  DAYS.forEach(d => {
-    const sorted = dayFree[d].slice().sort((a, b) => a - b);
-    let cur = [], bestRun = [];
-    sorted.forEach((s, i) => {
-      if (i === 0 || s === sorted[i - 1] + 1) cur.push(s);
-      else {
-        if (cur.length > bestRun.length) bestRun = cur;
-        cur = [s];
-      }
-    });
-    if (cur.length > bestRun.length) bestRun = cur;
-    if (bestRun.length && (!best || bestRun.length > best.len)) {
-      best = { day: d, run: bestRun, len: bestRun.length };
-    }
-  });
-
-  if (best) {
-    const bc = document.createElement('div');
-    bc.className = 'best-card';
-    const [a, b] = [best.run[0], best.run[best.run.length - 1]];
-    const t = a === b ? SEC_TIME[a] : SEC_TIME[a].split('-')[0] + ' - ' + SEC_TIME[b].split('-')[1];
-    bc.innerHTML = '<div class="bc-label">本周最佳约会时段</div>' +
-      '<div class="bc-main">' + best.day + ' · ' + (a === b ? '第' + a + '节' : '第' + a + '-' + b + '节') + '</div>' +
-      '<div class="bc-sub">' + t + '，连续 ' + best.len + ' 节两人都空闲</div>';
-    main.appendChild(bc);
-  }
-
-  // 每天一张卡
-  DAYS.forEach(d => {
-    const free = dayFree[d];
-    const card = document.createElement('div');
-    card.className = 'free-day';
-    const segs = mergeSecs(free);
-    const hd = document.createElement('div');
-    hd.className = 'fd-hd';
-    hd.innerHTML = '<span class="fd-day">' + d + '</span>' +
-      (free.length ? '<span class="fd-count">空闲 ' + free.length + ' 节</span>' : '<span class="fd-count none">当天无空闲</span>');
-    card.appendChild(hd);
-
-    const tl = document.createElement('div');
-    tl.className = 'tl';
-    for (let s = 1; s <= 12; s++) {
-      const seg = document.createElement('div');
-      seg.className = 'tl-seg ' + (free.indexOf(s) >= 0 ? 'on' : 'off');
-      seg.dataset.day = d; seg.dataset.sec = s;
-      tl.appendChild(seg);
-    }
-    card.appendChild(tl);
-
-    // 节次刻度（午/晚标记）
-    const tk = document.createElement('div');
-    tk.className = 'tl-tick';
-    for (let s = 1; s <= 12; s++) {
-      const c = (s === 3) ? '午' : (s === 7) ? '晚' : (s === 9) ? '9' : (s === 5) ? '5' : '';
-      tk.innerHTML += '<div class="tk ' + (c ? 'b' : 'm') + '">' + c + '</div>';
-    }
-    card.appendChild(tk);
-
-    const pills = document.createElement('div');
-    pills.className = 'fd-pills';
-    if (segs.length) {
-      segs.forEach(seg => {
-        const p = document.createElement('span');
-        p.className = 'pill';
-        p.textContent = seg + '　' + segTime(seg);
-        p.dataset.day = d; p.dataset.seg = seg;
-        pills.appendChild(p);
-      });
-    } else {
-      pills.innerHTML = '<span class="fd-none">两人当天都有课，没有共同空闲时段</span>';
-    }
-    card.appendChild(pills);
-
-    // 事件：点节次段
-    tl.querySelectorAll('.tl-seg').forEach(seg => {
-      seg.addEventListener('click', () => openFreeDetail(d, +seg.dataset.sec, +seg.dataset.sec));
-    });
-    // 事件：点空闲时段
-    pills.querySelectorAll('.pill').forEach(p => {
-      p.addEventListener('click', () => {
-        const [a, b] = parseSeg(p.dataset.seg);
-        openFreeDetail(d, a, b);
-      });
-    });
-
-    main.appendChild(card);
-  });
-
-  const tip = document.createElement('div');
-  tip.className = 'free-tip';
-  tip.innerHTML = '时间条按节次排列，绿色 = 两人都空闲，灰色 = 至少一人有课（点开可看是谁的课）。她那边若有单双周变化，告诉我再改。';
-  main.appendChild(tip);
-}
-function openFreeDetail(day, a, b){
-  const myMap = stageBusy(mineIdx);
-  const stMap = { free: '两人都空闲', onlyMe: '只有我有课', onlyHer: '只有她有课', both: '两人都有课' };
-  let st = 'free';
-  for (let s = a; s <= b; s++) {
-    const m = myMap[day].has(s), h = herBusyMap[day].has(s);
-    if (m && h) { st = 'both'; break; }
-    if (m) { st = 'onlyMe'; break; }
-    if (h) { st = 'onlyHer'; break; }
-  }
-  const t = a === b ? SEC_TIME[a] : SEC_TIME[a].split('-')[0] + ' - ' + SEC_TIME[b].split('-')[1];
-  const secTxt = a === b ? '第' + a + '节' : '第' + a + '-' + b + '节';
-  const mySlot = slotForSec(STAGES[mineIdx], day, a);
-  const herSlot = slotForSec(HER_WEEK, day, a);
-  let rows = '<div class="sheet-item"><span class="k">状态</span><span class="v">' + stMap[st] + '</span></div>';
-  rows += '<div class="sheet-item"><span class="k">时段</span><span class="v">' + secTxt + '　' + t + '</span></div>';
-  rows += '<div class="sheet-item"><span class="k">我</span><span class="v">' + (mySlot ? COURSES[mySlot.key].name + ' · ' + mySlot.loc : '空闲') + '</span></div>';
-  rows += '<div class="sheet-item"><span class="k">她</span><span class="v">' + (herSlot ? HER_COURSES[herSlot.key].name + ' · ' + herSlot.loc : '空闲') + '</span></div>';
-  openSheet(day + ' · ' + secTxt, rows, '绿色时段两人都没课，就是约会的好时机');
-}
-function slotForSec(weekData, day, sec){
-  const d = weekData.find(x => x.day === day);
-  if (!d) return null;
-  return d.slots.find(sl => secRange(sl.sec).indexOf(sec) >= 0) || null;
-}
-
-/* ===== 弹窗 ===== */
-const sheet = document.getElementById('sheet');
-function openSheet(name, rowsHtml, tip){
-  document.getElementById('shName').textContent = name;
-  document.getElementById('shList').innerHTML = rowsHtml;
-  document.getElementById('shTip').textContent = tip || '';
-  sheet.classList.add('open');
-}
-function openCourseSheet(c, slot, isHer){
-  let rows = '';
-  if (c.code) rows += '<div class="sheet-item"><span class="k">课程号</span><span class="v">' + c.code + '</span></div>';
-  rows += '<div class="sheet-item"><span class="k">节次</span><span class="v">' + slot.sec + '　' + slot.time + '</span></div>';
-  rows += '<div class="sheet-item"><span class="k">周次</span><span class="v">' + c.weeks + '</span></div>';
-  rows += '<div class="sheet-item"><span class="k">教室</span><span class="v">' + slot.loc + '</span></div>';
-  rows += '<div class="sheet-item"><span class="k">教师</span><span class="v">' + c.teacher + '</span></div>';
-  const tip = isHer
-    ? '她的课表按第1周整理，默认每周固定；若课程有单双周变化，告诉我再调整。'
-    : '作息时间：上午 1-4 节 / 下午 5-8 节 / 晚上 9-12 节，每节 45 分钟。';
-  openSheet(c.name, rows, tip);
-}
-function closeSheet(){ sheet.classList.remove('open'); }
-document.getElementById('sheetMask').addEventListener('click', closeSheet);
-document.getElementById('shClose').addEventListener('click', closeSheet);
-
-/* ===== 初始化 ===== */
-renderMine();
-renderHer();
-renderFree();
-<\/script>
-</body>
-</html>
-`;
-function openSchedule(){
+let schState={tab:'mine',stage:null};
+function schWeekNow(){ const d=Math.floor((Date.now()-SCH_TERM_START.getTime())/86400000); return d<0?1:Math.floor(d/7)+1; }
+function schStageForWeek(w){ if(w<=6)return 0; if(w<=8)return 1; if(w<=10)return 2; if(w<=12)return 3; if(w<=14)return 4; return 5; }
+function schSecIdx(sec){ const m=String(sec).match(/\d+/g); if(!m)return []; if(m.length===1)return [+m[0]]; const a=+m[0],b=+m[1],r=[]; for(let i=a;i<=b;i++)r.push(i); return r; }
+function schRange(sec){ const m=String(sec).match(/\d+/g); if(!m)return String(sec); if(m.length===1)return '第'+m[0]+'节'; return '第'+m[0]+'-'+m[1]+'节'; }
+function schTimeOf(sec){ const m=String(sec).match(/\d+/g); if(!m)return ''; const a=+m[0]; if(m.length===1)return SCH_SEC[a]||''; const b=+m[1]; return (SCH_SEC[a]||'').split('-')[0]+'-'+(SCH_SEC[b]||'').split('-')[1]; }
+function schBusy(days,keyMap){ const map={}; SCH_DAYS.forEach(function(d){ map[d]={}; }); days.forEach(function(dd){ (dd.slots||[]).forEach(function(sl){ schSecIdx(sl.sec).forEach(function(n){ map[dd.day][n]=keyMap[sl.key]?keyMap[sl.key].name:''; }); }); }); return map; }
+function schMyBusy(){ return schBusy(SCH_STAGES[schState.stage].days,SCH_MY); }
+function schHerBusy(){ return schBusy(SCH_HER_WEEK,SCH_HER); }
+function schMergeSecs(list){ if(!list.length)return []; const out=[]; let a=list[0],p=list[0]; for(let i=1;i<=list.length;i++){ const c=list[i]; if(c!==p+1){ out.push(a===p?('第'+a+'节'):('第'+a+'-'+p+'节')); a=c; } p=c; } return out; }function openSchedule(){
   _curTool='schedule';
+  showTool();
   document.getElementById('toolTitle').textContent='双人课表';
-  const tb=document.getElementById('toolBody');
-  tb.innerHTML='<div class="sch-wrap"><iframe class="sch-frame" id="schFrame"></iframe></div>';
-  const f=document.getElementById('schFrame');
-  if(f){ try{ f.setAttribute('srcdoc', SCH_SRCDOC); }catch(e){ toast('课表加载失败：'+e.message); } }
+  if(schState.stage===null) schState.stage=schStageForWeek(schWeekNow());
+  schRender();
 }
-function openTools(){
+function schTab(t){ schState.tab=t; schRender(); }
+function schStage(i){ schState.stage=i; schRender(); }
+function schStageBar(){
+  return '<div class="sch-stages">'+SCH_STAGES.map(function(s,i){
+    return '<button class="'+(i===schState.stage?'on':'')+'" onclick="schStage('+i+')">'+esc(s.label)+'</button>';
+  }).join('')+'</div>';
+}
+function schCourseRow(key,slot,isHer){
+  const c=(isHer?SCH_HER:SCH_MY)[key]||{name:'未知课程',teacher:'',weeks:''};
+  const col=schColor(key,isHer);
+  const arg=function(s){ return JSON.stringify(String(s)).split('"').join('&quot;'); };
+  return '<div class="sch-row" style="--c:'+col+'" onclick="schCourse('+arg(key)+','+(isHer?1:0)+','+arg(slot.sec)+','+arg(slot.loc||'')+')">'
+    +'<div class="sch-t"><b>'+esc(schRange(slot.sec))+'</b><span>'+esc(schTimeOf(slot.sec))+'</span></div>'
+    +'<div class="sch-i"><div class="sch-n">'+esc(c.name)+'</div>'
+    +'<div class="sch-m">'+esc(slot.loc||'')+(c.teacher?(' · '+esc(c.teacher)):'')+'</div>'
+    +'<div class="sch-w">'+esc(c.weeks||'')+'</div></div></div>';
+}
+function schCourse(key,isHer,sec,loc){
+  const c=(isHer?SCH_HER:SCH_MY)[key]||{};
+  const rows=
+    (c.code?('<div class="srow"><span>课程号</span><b>'+esc(c.code)+'</b></div>'):'')
+    +'<div class="srow"><span>节次</span><b>'+esc(schRange(sec))+'　'+esc(schTimeOf(sec))+'</b></div>'
+    +'<div class="srow"><span>周次</span><b>'+esc(c.weeks||'—')+'</b></div>'
+    +'<div class="srow"><span>教室</span><b>'+esc(loc||'—')+'</b></div>'
+    +'<div class="srow"><span>教师</span><b>'+esc(c.teacher||'—')+'</b></div>';
+  schSheet(c.name||'课程详情',rows);
+}
+function schSheet(title,rows){
+  let el=document.getElementById('schSheet');
+  if(!el){ el=document.createElement('div'); el.id='schSheet'; el.className='sch-sheet'; document.body.appendChild(el); }
+  el.innerHTML='<div class="ss-mask" onclick="schSheetClose()"></div><div class="ss-body"><div class="ss-grab"></div>'
+    +'<div class="ss-hd"><h3>'+esc(title)+'</h3><button class="ss-x" onclick="schSheetClose()">×</button></div>'
+    +'<div class="ss-list">'+rows+'</div></div>';
+  el.classList.add('open');
+}
+function schSheetClose(){ const el=document.getElementById('schSheet'); if(el) el.classList.remove('open'); }function schMineHtml(){
+  const st=SCH_STAGES[schState.stage];
+  let h='';
+  SCH_DAYS.forEach(function(d){
+    const dd=(st.days||[]).filter(function(x){return x.day===d;})[0]||{day:d,slots:[]};
+    h+='<section class="sch-day"><div class="sch-dh"><i></i>'+esc(d)+(dd.slots.length?'':'<em>无课</em>')+'</div>';
+    dd.slots.forEach(function(sl){ h+=schCourseRow(sl.key,sl,false); });
+    h+='</section>';
+  });
+  h+='<div class="sch-note"><b>本阶段说明：</b>'+esc(st.note||'')+'</div>';
+  return h;
+}
+function schHerHtml(){
+  let h='';
+  SCH_DAYS.forEach(function(d){
+    const dd=SCH_HER_WEEK.filter(function(x){return x.day===d;})[0]||{day:d,slots:[]};
+    h+='<section class="sch-day"><div class="sch-dh"><i></i>'+esc(d)+(dd.slots.length?'':'<em>无课</em>')+'</div>';
+    dd.slots.forEach(function(sl){ h+=schCourseRow(sl.key,sl,true); });
+    h+='</section>';
+  });
+  h+='<div class="sch-note">她的课表按第1周整理，默认每周固定（不随周次变化）。</div>';
+  return h;
+}
+function schFreeHtml(){
+  const my=schMyBusy(), her=schHerBusy();
+  const freeByDay={};
+  SCH_DAYS.forEach(function(d){ const l=[]; for(let s=1;s<=12;s++){ if(!my[d][s]&&!her[d][s]) l.push(s); } freeByDay[d]=l; });
+  let best=null;
+  SCH_DAYS.forEach(function(d){
+    const arr=freeByDay[d]; let cur=[],run=[];
+    arr.forEach(function(s,i){ if(i===0||s===arr[i-1]+1){ cur.push(s); } else { if(cur.length>run.length)run=cur; cur=[s]; } });
+    if(cur.length>run.length)run=cur;
+    if(run.length&&(!best||run.length>best.len))best={day:d,run:run,len:run.length};
+  });
+  let h='';
+  if(best){
+    const seg='第'+best.run[0]+'-'+best.run[best.run.length-1]+'节';
+    h+='<div class="sch-best"><div class="sb-l">本阶段最佳约会时段</div>'
+      +'<div class="sb-m">'+esc(best.day)+' · '+esc(schRange(seg))+'</div>'
+      +'<div class="sb-s">'+esc(schTimeOf(seg))+'　连续 '+best.len+' 节两人都空闲</div></div>';
+  } else {
+    h+='<div class="sch-best none"><div class="sb-l">本阶段</div><div class="sb-m">没有两人同时空闲的整段</div><div class="sb-s">换个阶段看看，或者各自错开时间</div></div>';
+  }
+  SCH_DAYS.forEach(function(d){
+    const free=freeByDay[d];
+    h+='<section class="sch-day"><div class="sch-dh"><i></i>'+esc(d)+(free.length?('<em class="ok">空闲 '+free.length+' 节</em>'):'<em>当天无空闲</em>')+'</div>';
+    h+='<div class="sch-tl">';
+    for(let s=1;s<=12;s++){ h+='<span class="'+(free.indexOf(s)>=0?'on':'off')+'"></span>'; }
+    h+='</div>';
+    h+='<div class="sch-segs">'+(free.length?schMergeSecs(free).map(function(x){return '<b>'+esc(x)+'</b>';}).join(''):'<span class="none">—</span>')+'</div>';
+    h+='</section>';
+  });
+  h+='<div class="sch-note">绿色格子＝两人都没课。想知道具体那天谁上什么，切到「我的课表 / 她的课表」。</div>';
+  return h;
+}
+function schRender(){
+  const tb=document.getElementById('toolBody');
+  const w=schWeekNow();
+  let h='<div class="sch">';
+  h+='<div class="sch-tabs">'
+    +'<button class="'+(schState.tab==='mine'?'on':'')+'" onclick="schTab(\'mine\')">我的课表</button>'
+    +'<button class="'+(schState.tab==='her'?'on':'')+'" onclick="schTab(\'her\')">她的课表</button>'
+    +'<button class="'+(schState.tab==='free'?'on':'')+'" onclick="schTab(\'free\')">双人空闲时间</button>'
+    +'</div>';
+  if(schState.tab==='her'){ h+=schHerHtml(); }
+  else{
+    h+=schStageBar();
+    h+='<div class="sch-hint">'+(w>=17?'本学期正课已于第16周结束，以下为最后阶段参考':'现在是第 '+w+' 周，已自动选中对应阶段')+'</div>';
+    h+=(schState.tab==='mine')?schMineHtml():schFreeHtml();
+  }
+  h+='</div>';
+  tb.innerHTML=h;
+}function openTools(){
   _curTool=null;
   document.getElementById('toolTitle').textContent='学习工具箱';
   showTool();
@@ -8799,7 +8420,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-26.34';
+const APP_BUILD='2026-10-26.35';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
