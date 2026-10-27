@@ -4932,7 +4932,7 @@ function mergeCardRaw(aRaw,bRaw){
   for(let i=0;i&lt;aw.length;i++){
     const c=map[aw[i].id];
     if(!c){ continue; }
-    ['trans','pos','hook','ex','ext','sample','note','lib'].forEach(f=&gt;{ if(c[f]!==undefined &amp;&amp; c[f]!=='') aw[i][f]=c[f]; });
+    ['trans','pos','hook','ex','ext','sample','note','lib','apd'].forEach(f=&gt;{ if(c[f]!==undefined &amp;&amp; c[f]!=='') aw[i][f]=c[f]; });
     if(c.ts &amp;&amp; c.ts&gt;(aw[i].ts||'')){ ['mastered','stage','wrong','next','ts'].forEach(f=&gt;{ aw[i][f]=c[f]; }); }
     else if(!aw[i].ts &amp;&amp; c.mastered){ aw[i].mastered=c.mastered; }
     delete map[aw[i].id];
@@ -5040,8 +5040,11 @@ const NOPREFIX='不会词库/';
 function isNoLib(l){ return l===NO_LIB || String(l).indexOf(NOPREFIX)===0; }
 function libList(){const s={};WORDS.forEach(w=&gt;{if(!isNoLib(w.lib))s[w.lib]=1;});const out=Object.keys(s);out.push(NO_LIB);return out;}
 function wordsOf(lib){if(lib===NO_LIB)return WORDS.filter(w=&gt;isNoLib(w.lib));return WORDS.filter(w=&gt;w.lib===lib);}
+/* 不会词库的排序：日期倒序（新的在上），同一天的 part 正序（part1 → part2 → part3）。
+   以前直接 sort().reverse()，把同一天的 part 也一起倒过来了：界面上 part3 排在 part1 前面。 */
+function noLibSort(a,b){const pa=/ part(\d+)$/.exec(String(a)),pb=/ part(\d+)$/.exec(String(b));const da=pa?String(a).slice(0,pa.index):String(a),db=pb?String(b).slice(0,pb.index):String(b);if(da!==db)return db.localeCompare(da);return (pa?+pa[1]:0)-(pb?+pb[1]:0);}
 /* 不会词库的日期子库列表，按日期倒序 */
-function noLibGroups(){const m={};let direct=0;WORDS.forEach(w=&gt;{if(w.lib===NO_LIB)direct++;else if(String(w.lib).indexOf(NOPREFIX)===0){const g=w.lib.slice(NOPREFIX.length);m[g]=(m[g]||0)+1;}});const groups=Object.keys(m).sort().reverse().map(g=&gt;({name:g,n:m[g]}));if(direct)groups.push({name:'未分组',n:direct,direct:true});return groups;}
+function noLibGroups(){const m={};let direct=0;WORDS.forEach(w=&gt;{if(w.lib===NO_LIB)direct++;else if(String(w.lib).indexOf(NOPREFIX)===0){const g=w.lib.slice(NOPREFIX.length);m[g]=(m[g]||0)+1;}});const groups=Object.keys(m).sort(noLibSort).map(g=&gt;({name:g,n:m[g]}));if(direct)groups.push({name:'未分组',n:direct,direct:true});return groups;}
 function libStats(lib){const ws=wordsOf(lib);let m=0;ws.forEach(w=&gt;{if(w.mastered)m++;});return {total:ws.length,mastered:m};}
 
 /* ========== 词库视图 ========== */
@@ -5103,7 +5106,6 @@ function renderNoGroups(){
   h+='&lt;div class=&quot;libgrid&quot;&gt;'+groups.map(g=&gt;{const canSplit=!g.direct&amp;&amp;!noIsPart(g.name)&amp;&amp;g.n&gt;NO_SPLIT_SIZE;
     const lib=g.direct?NO_LIB:(NOPREFIX+g.name);
     return '&lt;div class=&quot;unit&quot; onclick=&quot;enterLib(\''+escAttr(lib)+'\')&quot;&gt;&lt;div class=&quot;unit-top&quot;&gt;&lt;b&gt;'+esc(g.name)+'&lt;/b&gt;&lt;span class=&quot;unit-n&quot;&gt;'+g.n+' 词&lt;/span&gt;&lt;/div&gt;'
-      +'&lt;div class=&quot;meta&quot;&gt;'+g.n+' 词&lt;/div&gt;'
       +'&lt;div class=&quot;unit-ops&quot;&gt;&lt;button onclick=&quot;event.stopPropagation();enterLib(\''+escAttr(lib)+'\')&quot;&gt;查看&lt;/button&gt;'
       +'&lt;button onclick=&quot;event.stopPropagation();noCopyGroup(\''+escAttr(g.name)+'\')&quot;&gt;复制词表&lt;/button&gt;'
       +(canSplit?'&lt;button onclick=&quot;event.stopPropagation();noSplitOne(\''+escAttr(g.name)+'\')&quot;&gt;按 '+NO_SPLIT_SIZE+' 个分组&lt;/button&gt;':'')
@@ -5148,7 +5150,7 @@ function moveWordsModal(ids,fromLib){
   if(!ids.length){toast('没有要移动的词');return;}
   const targets=allTargetLibs(fromLib);
   const normal=targets.filter(function(l){return !isNoLib(l)&amp;&amp;!isPassLib(l);}).sort();
-  const noG=targets.filter(function(l){return isNoLib(l);}).sort().reverse();
+  const noG=targets.filter(function(l){return isNoLib(l);}).sort(noLibSort);
   const passG=targets.filter(function(l){return isPassLib(l);}).sort().reverse();
   function op(l){return '&lt;option value=&quot;'+escAttr(l)+'&quot;&gt;'+esc(libDisplay(l))+'&lt;/option&gt;';}
   let sel='';
@@ -8453,7 +8455,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-27.38';
+const APP_BUILD='2026-10-27.39';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -8947,7 +8949,7 @@ function mergeCardRaw(aRaw,bRaw){
   for(let i=0;i<aw.length;i++){
     const c=map[aw[i].id];
     if(!c){ continue; }
-    ['trans','pos','hook','ex','ext','sample','note','lib'].forEach(f=>{ if(c[f]!==undefined && c[f]!=='') aw[i][f]=c[f]; });
+    ['trans','pos','hook','ex','ext','sample','note','lib','apd'].forEach(f=>{ if(c[f]!==undefined && c[f]!=='') aw[i][f]=c[f]; });
     if(c.ts && c.ts>(aw[i].ts||'')){ ['mastered','stage','wrong','next','ts'].forEach(f=>{ aw[i][f]=c[f]; }); }
     else if(!aw[i].ts && c.mastered){ aw[i].mastered=c.mastered; }
     delete map[aw[i].id];
