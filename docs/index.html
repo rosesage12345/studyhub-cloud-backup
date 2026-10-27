@@ -463,6 +463,14 @@ table.ebh tr.due td.cycle-due{background:#f59e0b !important;color:#fff;font-weig
 .sch-m{font-size:12.5px;color:var(--text2);margin-top:2px}
 .sch-w{font-size:11.5px;color:var(--text2);opacity:.85;margin-top:1px}
 .sch-note{font-size:12.5px;color:var(--text2);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;line-height:1.65;margin-top:4px}
+/* 课表编辑：工具条 / 加课按钮 / 每行的改删按钮 */
+.sch-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px}
+.sch-tools .btn{min-height:34px;padding:6px 12px;font-size:12.5px}
+.sch-th{font-size:11.5px;color:var(--text2);flex:1;min-width:150px}
+.sch-add{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--brand);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer;font-family:inherit}
+.sch-ops{margin-left:auto;display:flex;gap:6px;flex:none}
+.sch-ops button{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--text2);font-size:13px;cursor:pointer;font-family:inherit;line-height:1}
+.sch-ops button.danger{color:var(--bad);border-color:var(--bad-soft)}
 .sch-best{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-radius:16px;padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
 .sch-best .sb-l{font-size:12px;opacity:.9}
 .sch-best .sb-m{font-size:19px;font-weight:800;margin-top:3px}
@@ -4808,7 +4816,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--teal,#0d9488);cur
 .ps-track{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
 .ps-track::-webkit-scrollbar{display:none}
 .ps-i{flex:0 0 auto;min-width:32px;padding:0 6px;box-sizing:border-box;height:30px;line-height:30px;text-align:center;border-radius:9px;font-size:12px;font-weight:700;background:var(--line);color:var(--text2);cursor:pointer;font-style:normal;transition:all .15s}
-.ps-i.apdzone{background:var(--gold-soft)}
+.ps-i.apdzone{background:var(--gold-soft);color:var(--gold)}
 .ps-legend{display:flex;gap:12px;justify-content:center;font-size:11px;color:var(--text2);margin-top:2px;opacity:.85}
 .ps-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:middle}
 .ps-i.ok{background:var(--ok-soft);color:var(--ok)}
@@ -4820,6 +4828,10 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--teal,#0d9488);cur
 .pt-gap{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--gold);font-size:12px;font-weight:700}
 .pt-gap::before,.pt-gap::after{content:'';flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--gold) 0 5px,transparent 5px 10px)}
 .pt-apd{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--gold-soft);color:var(--gold);margin-left:8px}
+/* 每 10 张一组：卡片尺上的竖线 + 组首的分组标题 */
+.ps-sep{flex:0 0 3px;height:28px;align-self:center;border-radius:2px;background:var(--text2);opacity:.45;margin:0 6px}
+.pt-grp{display:flex;align-items:center;gap:10px;margin:12px 0 8px;color:var(--text2);font-size:12px;font-weight:700;letter-spacing:.02em}
+.pt-grp::before,.pt-grp::after{content:'';flex:1;height:1px;background:var(--line)}
 &lt;/style&gt;
 &lt;/head&gt;
 &lt;body class=&quot;&quot;&gt;
@@ -5850,12 +5862,16 @@ function openPassImport(appendDate){
 }
 
 /* ---------- 训练 ---------- */
-function passStart(date){
+/* 正序队列：原有在前、后加入在后。建队列和「切回正序」都走这里，两边才不会错位。 */
+function passQueueInOrder(date){
   const lib=PASSPREFIX+date;
   const all=WORDS.filter(function(w){return w.lib===lib;});
   const orig=all.filter(function(w){return !w.apd;});
   const apd=all.filter(function(w){return !!w.apd;});
-  passState={date:date,queue:orig.concat(apd),idx:0,shuffle:false,open:{},results:{},gap:apd.length?orig.length:0,origN:orig.length,apdN:apd.length};
+  return orig.concat(apd);
+}
+function passStart(date){
+  passState={date:date,queue:passQueueInOrder(date),idx:0,shuffle:false,open:{},results:{}};
   renderPassTrain();
 }
 function passJump(i){
@@ -5999,7 +6015,7 @@ function passToggleShuffle(){
   const cur=passState.queue[passState.idx];
   passState.shuffle=!passState.shuffle;
   if(passState.shuffle){ passShuffleQueue(); }
-  else { passState.queue=WORDS.filter(function(w){return w.lib===PASSPREFIX+passState.date;}); }
+  else { passState.queue=passQueueInOrder(passState.date); }
   if(cur){const ni=passState.queue.findIndex(function(w){return w.id===cur.id;});passState.idx=ni&gt;=0?ni:0;}
   passState.open={};
   renderPassTrain();
@@ -6099,9 +6115,20 @@ function renderPassTrain(){
   ];
   const openKey=w.id;
   const graded=st.results[w.id];
-  /* 后加入的卡在这里插一道隔断，和原有的卡分开 */
-  const showGap=(st.gap&amp;&amp;st.idx===st.gap&amp;&amp;st.gap&lt;queue.length);
-  const gapHtml=showGap?('&lt;div class=&quot;pt-gap&quot;&gt;以下为后加入的卡（共 '+(queue.length-st.gap)+' 张）&lt;/div&gt;'):'';
+  /* 「后加入」的隔断改为按**每张卡自己的 apd 标记**实时判断，不再依赖队列里的固定下标。
+     以前记的是 st.gap，一旦乱序、只重过不会的、或者切回正序，下标就和实际卡片对不上，
+     金色区段和小旗子会飘走 —— 这就是「刚开始分得清、后面就没了」。 */
+  const prevW=st.idx&gt;0?queue[st.idx-1]:null;
+  const apdLeft=queue.filter(function(x){return !!x.apd;}).length;
+  const isApdStart=!!w.apd&amp;&amp;!(prevW&amp;&amp;prevW.apd);
+  /* 每 10 张一道隔断：十个十个背，一眼看得出这一组到哪结束 */
+  const GP=10;
+  const gTotal=Math.ceil(queue.length/GP);
+  const gIdx=Math.floor(st.idx/GP);
+  const gFrom=gIdx*GP+1, gTo=Math.min(queue.length,(gIdx+1)*GP);
+  const isGrpStart=(st.idx%GP===0);
+  const gapHtml=(isApdStart?('&lt;div class=&quot;pt-gap&quot;&gt;以下为后加入的卡（共 '+apdLeft+' 张）&lt;/div&gt;'):'')
+    +(isGrpStart?('&lt;div class=&quot;pt-grp&quot;&gt;第 '+(gIdx+1)+' / '+gTotal+' 组 · 第 '+gFrom+'–'+gTo+' 张&lt;/div&gt;'):'');
   let h='&lt;div class=&quot;pass-train&quot;&gt;';
   h+='&lt;div class=&quot;pt-bar&quot;&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;passBack()&quot;&gt;← 返回&lt;/button&gt;'
@@ -6135,13 +6162,15 @@ function renderPassTrain(){
   h+='&lt;div class=&quot;pt-strip&quot;&gt;&lt;div class=&quot;ps-hint&quot;&gt;卡片尺 · 点一下直接跳到那一张&lt;/div&gt;&lt;div class=&quot;ps-track&quot;&gt;';
   h+=queue.map(function(x,i){
     const r=st.results[x.id];
-    const isGap=(st.gap&amp;&amp;i===st.gap);
-    const inApd=(st.gap&amp;&amp;i&gt;=st.gap);
-    const cls='ps-i'+(inApd?' apdzone':'')+(i===st.idx?' cur':(r==='ok'?' ok':(r==='no'?' no':'')))+(isGap?' gapmark':'');
-    return '&lt;i class=&quot;'+cls+'&quot; onclick=&quot;passJump('+i+')&quot;&gt;'+(i+1)+'&lt;/i&gt;';
+    const inApd=!!x.apd;
+    const isApdB=(inApd &amp;&amp; (i===0 || !queue[i-1].apd));
+    const cls='ps-i'+(inApd?' apdzone':'')+(i===st.idx?' cur':(r==='ok'?' ok':(r==='no'?' no':'')))+(isApdB?' gapmark':'');
+    const cell='&lt;i class=&quot;'+cls+'&quot; onclick=&quot;passJump('+i+')&quot;&gt;'+(i+1)+'&lt;/i&gt;';
+    /* 每 10 张插一条竖线，把「十个十个背」的边界画出来 */
+    return (i&amp;&amp;i%GP===0?'&lt;i class=&quot;ps-sep&quot;&gt;&lt;/i&gt;':'')+cell;
   }).join('');
-  h+='&lt;/div&gt;&lt;div class=&quot;ps-now&quot;&gt;第 &lt;b&gt;'+(st.idx+1)+'&lt;/b&gt; / '+queue.length+' 张'+(st.apdN?('　原有 '+st.origN+' · 后加入 '+st.apdN):'')+'&lt;/div&gt;'
-    +(st.apdN?'&lt;div class=&quot;ps-legend&quot;&gt;&lt;span style=&quot;color:var(--gold)&quot;&gt;■ 金色区段 = 后加入的卡&lt;/span&gt;&lt;/div&gt;':'')
+  h+='&lt;/div&gt;&lt;div class=&quot;ps-now&quot;&gt;第 &lt;b&gt;'+(st.idx+1)+'&lt;/b&gt; / '+queue.length+' 张　·　第 &lt;b&gt;'+(gIdx+1)+'&lt;/b&gt; / '+gTotal+' 组'+(apdLeft?('　原有 '+(queue.length-apdLeft)+' · 后加入 '+apdLeft):'')+'&lt;/div&gt;'
+    +(apdLeft?'&lt;div class=&quot;ps-legend&quot;&gt;&lt;span style=&quot;color:var(--gold)&quot;&gt;■ 金色区段 = 后加入的卡&lt;/span&gt;&lt;span&gt;&lt;i style=&quot;background:var(--line)&quot;&gt;&lt;/i&gt;竖线 = 每 10 张一组&lt;/span&gt;&lt;/div&gt;':'&lt;div class=&quot;ps-legend&quot;&gt;&lt;span&gt;&lt;i style=&quot;background:var(--line)&quot;&gt;&lt;/i&gt;竖线 = 每 10 张一组&lt;/span&gt;&lt;/div&gt;')
     +'&lt;/div&gt;';
   h+='&lt;div class=&quot;pt-keys&quot;&gt;快捷键：← → 翻页 ｜ 1 做熟了 ｜ 2 不会 ｜ 空格 展开全部 ｜ Esc 返回&lt;/div&gt;';
   h+='&lt;/div&gt;';
@@ -7964,7 +7993,7 @@ function render(){
 const SCH_TERM_START=new Date('2026-09-07T00:00:00');
 const SCH_SEC={1:'08:00-08:45',2:'08:50-09:35',3:'10:00-10:45',4:'10:50-11:35',5:'13:30-14:15',6:'14:20-15:05',7:'15:30-16:15',8:'16:20-17:05',9:'18:00-18:45',10:'18:50-19:35',11:'20:00-20:45',12:'20:50-21:35'};
 const SCH_DAYS=['周一','周二','周三','周四','周五'];
-const SCH_MY={
+let SCH_MY={
  a:{name:'药品生产质量管理工程',code:'25HG31208',weeks:'1-8周',teacher:'杨若冰'},
  b:{name:'有机化学',code:'25HG21003Z',weeks:'1-12周',teacher:'刘钰君'},
  c:{name:'生物化学',code:'25HG31205',weeks:'7-16周',teacher:'陶云昌'},
@@ -7977,7 +8006,7 @@ const SCH_MY={
  j:{name:'化工制图',code:'25HG31118',weeks:'9-16周',teacher:'郭文旋'},
  k:{name:'化工原理课程设计',code:'浅课程',weeks:'15-16周',teacher:'徐良'}
 };
-const SCH_HER={
+let SCH_HER={
  j1:{name:'Java语言程序设计（A）',weeks:'每周固定',teacher:'王全新'},
  xg:{name:'习近平新时代中国特色社会主义思想概论',weeks:'每周固定',teacher:'蔡畅'},
  sj:{name:'数据结构（B）',weeks:'每周固定',teacher:'李昕'},
@@ -7987,7 +8016,7 @@ const SCH_HER={
  db:{name:'数据库原理',weeks:'每周固定',teacher:'刘文瑛'}
 };
 const SS=(sec,time,key,loc)=>({sec:sec,time:time,key:key,loc:loc});
-const SCH_STAGES=[
+let SCH_STAGES=[
  {label:'第1-6周',note:'生物化学（第7周开）、专创融合训练与化工制图（第9周开）此时段为空',days:[
   {day:'周一',slots:[SS('1-2节','08:00-09:35','a','知行楼-C101'),SS('5-6节','13:30-15:05','e','知行楼-A105'),SS('7-8节','15:30-17:05','g','知行楼-C101')]},
   {day:'周二',slots:[SS('1-2节','08:00-09:35','b','知行楼-C202'),SS('5-6节','13:30-15:05','f','知行楼-C201'),SS('7-8节','15:30-17:05','h','知行楼-C201')]},
@@ -8029,13 +8058,32 @@ const SCH_STAGES=[
   {day:'周五',slots:[SS('3-4节','10:00-11:35','i','知行楼-C101')]}
  ]}
 ];
-const SCH_HER_WEEK=[
+let SCH_HER_WEEK=[
  {day:'周一',slots:[SS('7-8节','15:30-17:05','j1','计算机基础实验室-3(505-506)'),SS('9节','18:00-18:45','os','思源楼-323'),SS('11节','20:00-20:45','se','知行楼C308-智慧教室')]},
  {day:'周二',slots:[SS('1-2节','08:00-09:35','xg','思源楼-324'),SS('3-4节','10:00-11:35','sj','知行楼-C107-智慧教室'),SS('9节','18:00-18:45','web','第二实验楼仿真实验室-108'),SS('11节','20:00-20:45','db','思源楼-433')]},
  {day:'周三',slots:[SS('7-8节','15:30-17:05','j1','计算机基础实验室-4(509-510)'),SS('9节','18:00-18:45','web','第二实验楼仿真实验室-108'),SS('11节','20:00-20:45','db','思源楼-433')]},
  {day:'周四',slots:[SS('5-6节','13:30-15:05','web','第二实验楼仿真实验室-108'),SS('7-8节','15:30-17:05','xg','思源楼239-智慧教室'),SS('9节','18:00-18:45','os','知行楼-A105'),SS('11节','20:00-20:45','sj','思源楼-331')]},
  {day:'周五',slots:[SS('1-2节','08:00-09:35','j1','计算机基础实验室-4(509-510)'),SS('7节','15:30-16:15','se','知行楼')]}
 ];
+/* ---------- 课表数据可改：改完存本机，下次打开还在 ----------
+   默认这份是内置的（按 2026 秋季学期整理），一旦你动过任何一节，
+   整份数据就落盘到 localStorage，之后都以你改的为准。 */
+const SCH_LS='kk_sch_data_v1';
+function schSaveData(){
+  try{ localStorage.setItem(SCH_LS, JSON.stringify({v:1,my:SCH_MY,stages:SCH_STAGES,her:SCH_HER,herWeek:SCH_HER_WEEK})); }
+  catch(e){ toast('课表保存失败：本机存储空间不足'); }
+}
+(function schLoadData(){
+  try{
+    const s=JSON.parse(localStorage.getItem(SCH_LS)||'null');
+    if(s && s.v===1 && s.my && s.stages && s.herWeek){ SCH_MY=s.my; SCH_STAGES=s.stages; SCH_HER=s.her||SCH_HER; SCH_HER_WEEK=s.herWeek; }
+  }catch(e){}
+})();
+function schResetData(){
+  if(!confirm('恢复成内置的默认课表？你加的课、改过的节次和教室都会被清掉。')) return;
+  try{ localStorage.removeItem(SCH_LS); }catch(e){}
+  location.reload();
+}
 const SCH_HUES=['#0d9488','#2563eb','#d97706','#db2777','#7c3aed','#0891b2','#65a30d','#dc2626','#4f46e5','#059669','#c026d3'];
 const SCH_HERS=['#db2777','#9333ea','#0891b2','#2563eb','#059669','#d97706','#4f46e5'];
 function schHash(s){ let h=0; s=String(s); for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
@@ -8067,15 +8115,19 @@ function schStageBar(){
     return '<button class="'+(i===schState.stage?'on':'')+'" onclick="schStage('+i+')">'+esc(s.label)+'</button>';
   }).join('')+'</div>';
 }
-function schCourseRow(key,slot,isHer){
+function schCourseRow(key,slot,isHer,ctx){
   const c=(isHer?SCH_HER:SCH_MY)[key]||{name:'未知课程',teacher:'',weeks:''};
   const col=schColor(key,isHer);
   const arg=function(s){ return JSON.stringify(String(s)).split('"').join('&quot;'); };
+  const ops=(schEdit&&ctx)?('<div class="sch-ops">'
+    +'<button onclick="event.stopPropagation();schSlotForm('+arg(ctx.mode)+','+arg(ctx.day)+','+ctx.stage+','+ctx.idx+')" title="改这节课">✎</button>'
+    +'<button class="danger" onclick="event.stopPropagation();schSlotDel('+arg(ctx.mode)+','+arg(ctx.day)+','+ctx.stage+','+ctx.idx+')" title="删掉这节课">✕</button>'
+    +'</div>'):'';
   return '<div class="sch-row" style="--c:'+col+'" onclick="schCourse('+arg(key)+','+(isHer?1:0)+','+arg(slot.sec)+','+arg(slot.loc||'')+')">'
     +'<div class="sch-t"><b>'+esc(schRange(slot.sec))+'</b><span>'+esc(schTimeOf(slot.sec))+'</span></div>'
     +'<div class="sch-i"><div class="sch-n">'+esc(c.name)+'</div>'
     +'<div class="sch-m">'+esc(slot.loc||'')+(c.teacher?(' · '+esc(c.teacher)):'')+'</div>'
-    +'<div class="sch-w">'+esc(c.weeks||'')+'</div></div></div>';
+    +'<div class="sch-w">'+esc(c.weeks||'')+'</div></div>'+ops+'</div>';
 }
 function schCourse(key,isHer,sec,loc){
   const c=(isHer?SCH_HER:SCH_MY)[key]||{};
@@ -8098,13 +8150,111 @@ function schSheet(title,rows){
     +'<div class="ss-list">'+rows+'</div></div>';
   el.classList.add('open');
 }
-function schSheetClose(){ const el=document.getElementById('schSheet'); if(el) el.classList.remove('open'); }function schMineHtml(){
+function schSheetClose(){ const el=document.getElementById('schSheet'); if(el) el.classList.remove('open'); }
+/* ---------- 课表编辑：加 / 删 / 改 ---------- */
+let schEdit=false;
+function schToggleEdit(){ schEdit=!schEdit; schRender(); }
+function schSlotDay(mode,day,stageIdx){
+  if(mode==='her'){
+    let dd=SCH_HER_WEEK.filter(function(x){return x.day===day;})[0];
+    if(!dd){ dd={day:day,slots:[]}; SCH_HER_WEEK.push(dd); }
+    return dd;
+  }
+  const st=SCH_STAGES[stageIdx];
+  st.days=st.days||[];
+  let dd=st.days.filter(function(x){return x.day===day;})[0];
+  if(!dd){ dd={day:day,slots:[]}; st.days.push(dd); }
+  return dd;
+}
+function schSortSlots(dd){
+  dd.slots.sort(function(a,b){ const x=schSecIdx(a.sec)[0]||99, y=schSecIdx(b.sec)[0]||99; return x-y; });
+}
+/* 两个节次区间有没有重叠（"1-2节" 和 "2节" 算重叠） */
+function schSegOverlap(a,b){
+  const A=schSecIdx(a), B=schSecIdx(b);
+  for(let i=0;i<A.length;i++){ if(B.indexOf(A[i])>=0) return true; }
+  return false;
+}
+/* 课程按名字复用：名字没变就沿用原来那条，换了名字等于换一门课 */
+function schCourseKeyFor(dict,name,teacher,weeks,code){
+  const nm=String(name||'').trim();
+  const ks=Object.keys(dict);
+  for(let i=0;i<ks.length;i++){ if(String(dict[ks[i]].name||'').trim()===nm) return ks[i]; }
+  let k='u'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  while(dict[k]) k+='x';
+  dict[k]={name:nm,teacher:String(teacher||'').trim(),weeks:String(weeks||'').trim()};
+  if(String(code||'').trim()) dict[k].code=String(code||'').trim();
+  return k;
+}
+function schSlotForm(mode,day,stageIdx,slotIdx){
+  const isHer=(mode==='her');
+  const dd=schSlotDay(mode,day,stageIdx);
+  const slot=(slotIdx>=0 && dd.slots[slotIdx])?dd.slots[slotIdx]:null;
+  const dict=isHer?SCH_HER:SCH_MY;
+  const c=slot?(dict[slot.key]||{}):{};
+  const secs=['1-2节','3-4节','5-6节','7-8节','9-10节','11-12节','1节','2节','3节','4节','5节','6节','7节','8节','9节','10节','11节','12节'];
+  const html='<h3>'+(slot?'改这节课':'加一节课')+' · '+esc(day)+'</h3>'
+    +'<div class="fld"><label>节次</label><select id="sfSec">'+secs.map(function(s){
+        return '<option value="'+esc(s)+'"'+((slot?slot.sec:'')===s?' selected':'')+'>'+esc(s)+'（'+esc(schTimeOf(s))+'）</option>';
+      }).join('')+'</select></div>'
+    +'<div class="fld"><label>课程名</label><input id="sfName" value="'+esc(c.name||'')+'" placeholder="如：有机化学"></div>'
+    +'<div class="fld"><label>教室</label><input id="sfLoc" value="'+esc(slot?(slot.loc||''):'')+'" placeholder="如：知行楼-C202"></div>'
+    +'<div class="fld"><label>老师</label><input id="sfTeacher" value="'+esc(c.teacher||'')+'" placeholder="可留空"></div>'
+    +(isHer?'':('<div class="fld"><label>周次</label><input id="sfWeeks" value="'+esc(c.weeks||'')+'" placeholder="如：1-12周"></div>'
+      +'<div class="fld"><label>课程号（可留空）</label><input id="sfCode" value="'+esc(c.code||'')+'"></div>'))
+    +'<p class="muted" style="font-size:12px;margin:2px 0 10px">课程名相同就是同一门课（改名字等于换课）；只改节次/教室不影响别处。</p>'
+    +'<div class="btn-row"><button class="btn primary" id="sfOK">保存</button>'
+    +(slot?'<button class="btn danger" id="sfDel">删除这节</button>':'')
+    +'<button onclick="closeHubModal()">取消</button></div>';
+  hubModal(html);
+  $('sfOK').addEventListener('click',function(){
+    const sec=$('sfSec').value;
+    const name=$('sfName').value.trim();
+    if(!name){ toast('课程名不能为空'); return; }
+    const loc=$('sfLoc').value.trim();
+    const teacher=$('sfTeacher').value.trim();
+    const weeks=isHer?'每周固定':(($('sfWeeks')&&$('sfWeeks').value.trim())||'');
+    const code=isHer?'':(($('sfCode')&&$('sfCode').value.trim())||'');
+    const key=schCourseKeyFor(dict,name,teacher,weeks,code);
+    /* 同一时段已经有课 → 问一句，别悄悄叠上去 */
+    const clash=dd.slots.filter(function(s){ return s!==slot && schSegOverlap(s.sec,sec); });
+    if(clash.length){
+      const other=(dict[clash[0].key]||{}).name||'别的课';
+      if(!confirm(day+' '+schRange(sec)+' 已经有「'+other+'」了，还要继续吗？')) return;
+    }
+    if(slot){ slot.sec=sec; slot.time=schTimeOf(sec); slot.loc=loc; slot.key=key; }
+    else { dd.slots.push({sec:sec,time:schTimeOf(sec),key:key,loc:loc}); }
+    schSortSlots(dd);
+    schSaveData(); closeHubModal(); schRender();
+    toast(slot?'已保存':'已加课：'+name);
+  });
+  if(slot){
+    $('sfDel').addEventListener('click',function(){ schSlotDel(mode,day,stageIdx,dd.slots.indexOf(slot)); });
+  }
+}
+function schSlotDel(mode,day,stageIdx,slotIdx){
+  const dd=schSlotDay(mode,day,stageIdx);
+  const slot=dd.slots[slotIdx];
+  if(!slot) return;
+  if(!confirm('删掉「'+day+' '+schRange(slot.sec)+'」这节课？')) return;
+  const key=slot.key;
+  dd.slots.splice(slotIdx,1);
+  const dict=(mode==='her')?SCH_HER:SCH_MY;
+  const used={};
+  if(mode==='her'){ SCH_HER_WEEK.forEach(function(d){ (d.slots||[]).forEach(function(s){ used[s.key]=1; }); }); }
+  else { SCH_STAGES.forEach(function(st){ (st.days||[]).forEach(function(d){ (d.slots||[]).forEach(function(s){ used[s.key]=1; }); }); }); }
+  if(key && !used[key]) delete dict[key];
+  schSaveData(); closeHubModal(); schRender(); toast('已删除');
+}
+function schMineHtml(){
   const st=SCH_STAGES[schState.stage];
   let h='';
   SCH_DAYS.forEach(function(d){
     const dd=(st.days||[]).filter(function(x){return x.day===d;})[0]||{day:d,slots:[]};
-    h+='<section class="sch-day"><div class="sch-dh"><i></i>'+esc(d)+(dd.slots.length?'':'<em>无课</em>')+'</div>';
-    dd.slots.forEach(function(sl){ h+=schCourseRow(sl.key,sl,false); });
+    h+='<section class="sch-day"><div class="sch-dh"><i></i>'+esc(d)+(dd.slots.length?'':'<em>无课</em>')
+      +(schEdit?('<button class="sch-add" onclick="schSlotForm(\'mine\',\''+d+'\','+schState.stage+',-1)">＋ 加课</button>'):'')
+      +'</div>';
+    dd.slots.forEach(function(sl,i){ h+=schCourseRow(sl.key,sl,false,{mode:'mine',day:d,stage:schState.stage,idx:i}); });
     h+='</section>';
   });
   h+='<div class="sch-note"><b>本阶段说明：</b>'+esc(st.note||'')+'</div>';
@@ -8114,8 +8264,10 @@ function schHerHtml(){
   let h='';
   SCH_DAYS.forEach(function(d){
     const dd=SCH_HER_WEEK.filter(function(x){return x.day===d;})[0]||{day:d,slots:[]};
-    h+='<section class="sch-day"><div class="sch-dh"><i></i>'+esc(d)+(dd.slots.length?'':'<em>无课</em>')+'</div>';
-    dd.slots.forEach(function(sl){ h+=schCourseRow(sl.key,sl,true); });
+    h+='<section class="sch-day"><div class="sch-dh"><i></i>'+esc(d)+(dd.slots.length?'':'<em>无课</em>')
+      +(schEdit?('<button class="sch-add" onclick="schSlotForm(\'her\',\''+d+'\',0,-1)">＋ 加课</button>'):'')
+      +'</div>';
+    dd.slots.forEach(function(sl,i){ h+=schCourseRow(sl.key,sl,true,{mode:'her',day:d,stage:0,idx:i}); });
     h+='</section>';
   });
   h+='<div class="sch-note">她的课表按第1周整理，默认每周固定（不随周次变化）。</div>';
@@ -8161,6 +8313,10 @@ function schRender(){
     +'<button class="'+(schState.tab==='mine'?'on':'')+'" onclick="schTab(\'mine\')">我的课表</button>'
     +'<button class="'+(schState.tab==='her'?'on':'')+'" onclick="schTab(\'her\')">她的课表</button>'
     +'<button class="'+(schState.tab==='free'?'on':'')+'" onclick="schTab(\'free\')">双人空闲时间</button>'
+    +'</div>';
+  h+='<div class="sch-tools">'
+    +'<button class="btn small'+(schEdit?' primary':'')+'" onclick="schToggleEdit()">'+(schEdit?'✓ 编辑完成':'✎ 编辑课表')+'</button>'
+    +(schEdit?('<span class="sch-th">点 ✎ 改这节课、✕ 删；每天标题右边「＋ 加课」</span><button class="btn small" onclick="schResetData()">恢复默认</button>'):'')
     +'</div>';
   if(schState.tab==='her'){ h+=schHerHtml(); }
   else{
@@ -8455,7 +8611,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-27.39';
+const APP_BUILD='2026-10-27.40';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -9158,9 +9314,11 @@ function chunkCard(profileId,raw){
   try{ d=JSON.parse(raw||'{}'); }catch(e){ d={}; }
   const words=d.words||[];
   const chunks=[];
-  let cur=[];
-  const flush=()=>{ chunks.push(cur); cur=[]; };
-  words.forEach(w=>{ cur.push(w); if(JSON.stringify(cur).length>=CHUNK_TARGET) flush(); });
+  let cur=[], curLen=2;
+  const flush=()=>{ chunks.push(cur); cur=[]; curLen=2; };
+  /* 以前每加一个词就把整个 cur 数组 JSON.stringify 一遍，词一多就是 O(n²)，
+     几千个词时同步会卡住好几秒 —— 这就是「有时候会卡死」。改成累加每个词自己的长度。 */
+  words.forEach(w=>{ const s=JSON.stringify(w); cur.push(w); curLen+=s.length+1; if(curLen>=CHUNK_TARGET) flush(); });
   if(cur.length) flush();
   if(!chunks.length) chunks.push([]);
   return chunks.map((ws,i)=>({v:3,profile:profileId,part:i,total:chunks.length,words:ws,history:i===chunks.length-1?normHistory(d.history):undefined,graves:i===chunks.length-1?(d.graves||[]):undefined}));
@@ -10121,6 +10279,10 @@ window.addEventListener('hashchange',()=>{
     setTimeout(()=>{ try{ location.reload(); }catch(e){} },600);
   }
 });
+
+/* 全局兜底：未捕获的错误弹一条 toast，而不是让界面停在那儿「卡死」也不说话 */
+window.addEventListener('error',function(e){ try{ toast('出错了：'+((e&&e.message)||'未知错误')); }catch(_){ } });
+window.addEventListener('unhandledrejection',function(e){ try{ var r=e&&e.reason; toast('后台任务出错：'+((r&&r.message)||r||'')); }catch(_){ } });
 
 document.addEventListener('DOMContentLoaded', async ()=>{
   if(localStorage.getItem('hub_theme')==='dark'){ document.body.setAttribute('data-theme','dark'); }
