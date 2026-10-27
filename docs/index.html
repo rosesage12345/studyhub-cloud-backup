@@ -5079,19 +5079,34 @@ let noHomeMode=false;
 function enterLib(lib){curLib=lib;if(lib===NO_LIB)renderNoGroups();else renderLibDetail();}
 
 /* 不会词库：日期子库列表 */
+const HOOK_PROMPT='# 单词卡钩子生成提示词（谐音融合版 · v3）\n\n&gt; 用途：把这个提示词整段发给 AI，让它为一批考研单词生成「记得住」的钩子素材。\n&gt; 送到 AI 的输入格式：每行一个 `单词 | 词性释义`，或直接贴词表。\n&gt; 输出格式固定为 8 行一段（见下），可直接粘回学习台的「导入钩子文本」。\n\n---\n\n## 一、你（AI）的角色\n\n你是一个**中文谐音记忆法高手**，专门把英语单词和中文读音、一个画面、一个故事缝在一起，\n让人看一遍就忘不掉。\n\n## 二、最核心的要求：谐音必须&quot;长&quot;在句子里\n\n**不要**先想一个谐音，再硬凑一句不相干的话。要**先造一个完整通顺的中文句子**，\n让这个句子的**读音整体贴近英文单词的读音**，同时**句子的意思还要能自然勾连这个词的释义**。\n\n### 反面例子（禁止）\n\n```\n单词：celebrate\n谐音：塞了不来特\n记忆句：塞了不来特\n```\n\n问题：谐音和句子是同一个东西，等于没给句子；而且&quot;塞了不来特&quot;这几个字彼此毫无关系，\n大脑记不住一堆散字。\n\n```\n单词：abandon\n谐音：一帮人\n记忆句：一帮人离开了\n```\n\n问题：谐音只覆盖了单词的一半读音，且和&quot;抛弃&quot;的联系很弱。\n\n### 正面例子（照这个标准写）\n\n```\n单词：celebrate\n音标：/ˈselɪbreɪt/\n释义：v. 庆祝；庆贺\n谐音：塞了礼物不来也开心\n记忆句：生日那天塞了礼物不来也特别开心，这就是「庆祝」的心意。\n例句：We celebrate her birthday every year. 我们每年都庆祝她的生日。\n拓展：celebration n. 庆祝；celebrated adj. 著名的\n趣味句：塞了礼物不来也开心，反正庆祝的是心意。\n```\n\n**好在哪**：\n- &quot;塞了礼物不来也开心&quot;整体读音 ≈ celebrate，**是一个通顺的句子，不是一个词串**\n- 句子里天然带出&quot;开心&quot;的情绪，和&quot;庆祝&quot;的释义顺理成章地接上了\n- 读一遍就能画出一个画面：塞礼物、没来、还是很开心\n\n```\n单词：abroad\n音标：/əˈbrɔːd/\n释义：adv. 在国外\n谐音：额不落的\n记忆句：额不落的行李还留在国外，人已经回来了。\n```\n\n**好在哪**：「额不落的」像人名/口头语，句子把&quot;在国外&quot;直接说出来了，画面感强。\n\n```\n单词：ambition\n音标：/æmˈbɪʃn/\n释义：n. 雄心；抱负\n谐音：俺必胜\n记忆句：俺必胜——这股劲就是「雄心」。\n```\n\n**好在哪**：三字谐音干净、读音贴合、&quot;必胜&quot;本身就把&quot;雄心&quot;的意思带出来了。\n\n```\n单词：candidate\n音标：/ˈkændɪdət/\n释义：n. 候选人；应试者\n谐音：看的等他\n记忆句：这么多人都看着等他上台，因为他是唯一的「候选人」。\n```\n\n**好在哪**：读音贴合，&quot;看着等他&quot;就是候选人的处境，句意和释义互相解释。\n\n## 三、硬性规则\n\n1. **谐音必须是完整、通顺、有意义的中文**，不能是几个不相干的字拼在一起；\n   宁可稍长一点，也要让它读起来像人话。\n2. **谐音要尽量覆盖整个单词的读音**（可以略有出入，但不能只盖住一半）。\n3. **谐音里的字不要生僻、不要拗口**，用日常口语里会出现的词。\n4. **记忆句里必须自然出现这个单词的释义**（用同义词、近义词、或直接把意思讲清楚），\n   让人读完既记住了音、也记住了义。\n5. **不许跑题**：句子必须和这个词的释义有逻辑关系。\n   如果只能编出跟释义无关的句子，就换一个谐音重来。\n6. **不要雷同**：一批词里的谐音不能反复用同一个套路（比如全是&quot;XX的&quot;、\n   全是人名、全是&quot;俺&quot;字开头）。风格要错开。\n7. **音标必须正确**，用英式或美式都可以，但同一个批次里保持一致。\n8. **例句**要地道、简短（不超过 15 词），中文翻译跟在后一行里是不行的 —— 见输出格式。\n9. **趣味句**是记忆句的口语化 / 更俏皮版本，用于第二遍复习时换个说法加深印象；\n   不要和记忆句完全一样。\n10. **词根/派生**：写 1-3 个同根词或常见搭配，没有就写这个词的常见搭配。\n\n## 四、输出格式（严格遵守，一行一个字段，段与段之间空一行）\n\n```\n单词：celebrate\n音标：/ˈselɪbreɪt/\n释义：v. 庆祝；庆贺\n谐音：塞了礼物不来也开心\n记忆句：生日那天塞了礼物不来也特别开心，这就是「庆祝」的心意。\n例句：We celebrate her birthday every year.\n拓展：celebration n. 庆祝；celebrated adj. 著名的\n趣味句：塞了礼物不来也开心，反正庆祝的是心意。\n\n单词：下一个词\n音标：...\n释义：...\n谐音：...\n记忆句：...\n例句：...\n拓展：...\n趣味句：...\n```\n\n**注意**：`例句` 一行只写英文句子，**不要**把中文翻译放在同一行（学习台的显示只认英文那一行）。\n\n## 五、质量自检（输出前逐条过一遍）\n\n- [ ] 每个谐音单独读出来，像不像一句**人话**？\n- [ ] 谐音能否**覆盖大半个单词的读音**？\n- [ ] 记忆句里有没有把**释义**自然带出来？\n- [ ] 句子和释义有没有**逻辑关系**（没跑题）？\n- [ ] 一批词的谐音**风格**有没有错开？\n- [ ] 音标是否**正确**（对照词典核对，不要凭感觉写）？\n- [ ] 例句是否地道、简短、无拼写错误？\n- [ ] 一共 8 个字段，一个不多一个不少？\n\n## 六、一次性可处理的量\n\n**每批 15-20 个词**最稳妥（质量最高）。\n如果一次给很多词，请分批处理，并在每批结束后自查一遍再进入下一批。\n不要为了赶数量而降低谐音质量 —— **宁可少写几个，也不要写生硬的**。\n\n## 七、送进来的词表\n\n&lt;!-- 在这里贴上你的词表，一行一个：单词 | 词性释义 --&gt;';
+function copyText(t,ok){const fb=function(){openModal('&lt;h3&gt;复制&lt;/h3&gt;&lt;p class=&quot;muted&quot;&gt;'+esc(ok)+'&lt;/p&gt;&lt;div class=&quot;fld&quot;&gt;&lt;textarea id=&quot;cpTxt&quot; style=&quot;min-height:200px;font-size:12px&quot;&gt;'+esc(t)+'&lt;/textarea&gt;&lt;/div&gt;&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; id=&quot;cpSel&quot;&gt;全选&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;关闭&lt;/button&gt;&lt;/div&gt;');const b=$('cpSel');if(b)b.addEventListener('click',function(){const x=$('cpTxt');if(!x)return;x.focus();x.select();try{document.execCommand('copy');toast('已复制');}catch(e){}});};try{if(navigator.clipboard&amp;&amp;navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast(ok);},fb);}else fb();}catch(e){fb();}}
+function copyHookPrompt(){copyText(HOOK_PROMPT,'钩子提示词已复制，粘到 AI 对话框最前面');}
+const NO_SPLIT_SIZE=20;
+function noIsPart(n){return / part\d+$/.test(String(n));}
+function noNextPartIndex(n){let mx=0;const pre=NOPREFIX+n+' part';WORDS.forEach(function(w){const s=String(w.lib);if(s.indexOf(pre)===0){const k=parseInt(s.slice(pre.length),10);if(k&gt;mx)mx=k;}});return mx+1;}
+function noSplitGroup(n,size){size=size||NO_SPLIT_SIZE;if(noIsPart(n))return 0;const lib=NOPREFIX+n,ws=WORDS.filter(function(w){return w.lib===lib;});if(ws.length&lt;=size)return 0;let idx=noNextPartIndex(n),made=0;for(let i=0;i&lt;ws.length;i+=size){const ch=ws.slice(i,i+size),part=NOPREFIX+n+' part'+idx;ch.forEach(function(w){w.lib=part;w.ts=w.ts||todayStr();});idx++;made++;}return made;}
+function noSplitOne(n){const k=noSplitGroup(n,NO_SPLIT_SIZE);if(k){save();renderNoGroups();toast('已把 '+n+' 分成 '+k+' 组');}else{toast('这天的词不超过 '+NO_SPLIT_SIZE+' 个，或已分过');}}
+function noSplitAll(size){size=size||NO_SPLIT_SIZE;const gs=noLibGroups().filter(function(g){return !g.direct;});let t=0,d=0;gs.forEach(function(g){const k=noSplitGroup(g.name,size);if(k){t+=k;d++;}});if(t)save();renderNoGroups();toast(t?('已把 '+d+' 天各按 '+size+' 个分成 '+t+' 组'):('没有需要分组的'));}
+function noAutoSplitToday(){const k=noSplitGroup(todayStr(),NO_SPLIT_SIZE);if(k)save();return k;}
+function noCopyGroup(n){const ws=WORDS.filter(function(w){return w.lib===NOPREFIX+n;}).sort(function(a,b){return String(a.w).localeCompare(String(b.w));});if(!ws.length){toast('这组没有词');return;}copyText(ws.map(function(w){return [w.w,w.trans||'',w.pos||''].join('|');}).join('\n'),'已复制 '+ws.length+' 个词');}
 function renderNoGroups(){
   noHomeMode=false;
   const box=$('libsBox');
   const groups=noLibGroups();
   let h='&lt;div class=&quot;libhead&quot;&gt;&lt;button class=&quot;btn small&quot; onclick=&quot;libBack()&quot;&gt;← 返回&lt;/button&gt;&lt;h3&gt;不会词库&lt;/h3&gt;&lt;span class=&quot;spacer&quot;&gt;&lt;/span&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;copyHookPrompt()&quot;&gt;📋 钩子提示词&lt;/button&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;noSplitAll()&quot;&gt;按 '+NO_SPLIT_SIZE+' 个分组&lt;/button&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;renderNoHome()&quot;&gt;批量管理&lt;/button&gt;&lt;/div&gt;';
   h+='&lt;div class=&quot;imp-hint&quot;&gt;过卡点「不会」的词会按日期自动归档到这里，方便你针对性复习。&lt;/div&gt;';
   if(!groups.length){h+='&lt;div class=&quot;imp-hint&quot;&gt;还没有不会的词，继续保持。&lt;/div&gt;';box.innerHTML=h;return;}
-  h+='&lt;div class=&quot;grid2&quot;&gt;'+groups.map(g=&gt;{
+  h+='&lt;div class=&quot;libgrid&quot;&gt;'+groups.map(g=&gt;{const canSplit=!g.direct&amp;&amp;!noIsPart(g.name)&amp;&amp;g.n&gt;NO_SPLIT_SIZE;
     const lib=g.direct?NO_LIB:(NOPREFIX+g.name);
-    return '&lt;div class=&quot;unit&quot; onclick=&quot;enterLib(\''+escAttr(lib)+'\')&quot;&gt;&lt;b&gt;'+esc(g.name)+'&lt;span class=&quot;badge pink&quot;&gt;不会&lt;/span&gt;&lt;/b&gt;'
+    return '&lt;div class=&quot;unit&quot; onclick=&quot;enterLib(\''+escAttr(lib)+'\')&quot;&gt;&lt;div class=&quot;unit-top&quot;&gt;&lt;b&gt;'+esc(g.name)+'&lt;/b&gt;&lt;span class=&quot;unit-n&quot;&gt;'+g.n+' 词&lt;/span&gt;&lt;/div&gt;'
       +'&lt;div class=&quot;meta&quot;&gt;'+g.n+' 词&lt;/div&gt;'
       +'&lt;div class=&quot;unit-ops&quot;&gt;&lt;button onclick=&quot;event.stopPropagation();enterLib(\''+escAttr(lib)+'\')&quot;&gt;查看&lt;/button&gt;'
+      +'&lt;button onclick=&quot;event.stopPropagation();noCopyGroup(\''+escAttr(g.name)+'\')&quot;&gt;复制词表&lt;/button&gt;'
+      +(canSplit?'&lt;button onclick=&quot;event.stopPropagation();noSplitOne(\''+escAttr(g.name)+'\')&quot;&gt;按 '+NO_SPLIT_SIZE+' 个分组&lt;/button&gt;':'')
       +(g.direct?'':'&lt;button onclick=&quot;event.stopPropagation();noGroupRename(\''+escAttr(g.name)+'\')&quot;&gt;重命名&lt;/button&gt;')
       +'&lt;button class=&quot;danger&quot; onclick=&quot;event.stopPropagation();noGroupDrop(\''+escAttr(g.name)+'\','+(g.direct?'true':'false')+')&quot;&gt;清空&lt;/button&gt;'
       +'&lt;/div&gt;&lt;/div&gt;';
@@ -5482,7 +5497,8 @@ function renderQuiz(){
       +'&lt;div class=&quot;done-stats&quot;&gt;做熟了 '+roundKnown+' 词 · 不会 '+roundUnknown+' 词&lt;/div&gt;'
       +'&lt;div class=&quot;sub&quot;&gt;'+doneCheer()+'&lt;/div&gt;'
       +'&lt;div class=&quot;done-actions&quot;&gt;&lt;button class=&quot;btn primary&quot; onclick=&quot;buildQuiz()&quot;&gt;再来一轮&lt;/button&gt;'
-      +'&lt;button class=&quot;btn&quot; onclick=&quot;switchTab(\'libs\')&quot;&gt;返回词库&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
+      +'&lt;button class=&quot;btn&quot; onclick=&quot;switchTab(\'libs\')&quot;&gt;返回词库&lt;/button&gt;&lt;/div&gt;'
+      +'&lt;div class=&quot;sub&quot; style=&quot;margin-top:10px;font-size:12px;color:var(--text2)&quot;&gt;'+((function(){const k=noAutoSplitToday();return k?('已把今天的不会词自动按 '+NO_SPLIT_SIZE+' 个分成 '+k+' 组（part1、part2…）'):'';})())+'&lt;/div&gt;&lt;/div&gt;';
     return;
   }
   $('quizProg').style.width=((quizIdx)/quizQueue.length*100)+'%';
@@ -5612,6 +5628,7 @@ function renderPass(){
   const f=passFilter;
   const filtering=(f.mode!=='all')||!!f.from||!!f.to||!!f.q;
   let h='&lt;div class=&quot;pass-head&quot;&gt;&lt;h3&gt;背诵过关 · 钩子复习&lt;/h3&gt;&lt;span class=&quot;sp&quot;&gt;&lt;/span&gt;'
+    +'&lt;button class=&quot;btn small&quot; onclick=&quot;copyHookPrompt()&quot;&gt;📋 钩子提示词&lt;/button&gt;'
     +'&lt;button class=&quot;btn small&quot; onclick=&quot;passExportAll()&quot;&gt;导出全部&lt;/button&gt;'
     +'&lt;button class=&quot;btn primary small&quot; onclick=&quot;openPassImport()&quot;&gt;导入钩子文本&lt;/button&gt;&lt;/div&gt;';
   h+='&lt;div class=&quot;pass-hint&quot;&gt;把 AI 生成的钩子文本粘进来，自动按日期做成背诵过关卡包。复习时只看英文，点开对应板块才显示谐音、记忆句、释义等 —— 先主动回忆，再核对答案，记得更牢。底部「做熟了 / 不会」和过卡共用同一套记忆进度。&lt;/div&gt;';
