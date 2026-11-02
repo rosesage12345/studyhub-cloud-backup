@@ -5025,9 +5025,22 @@ function mergeCardRaw(aRaw,bRaw){
     delete map[aw[i].id];
   }
   Object.keys(map).forEach(id=&gt;aw.push(map[id]));
-  const ah=normHistory(a.history).slice();
-  normHistory(b.history).forEach(x=&gt;{ if(ah.indexOf(x)&lt;0) ah.push(x); });
-  const graves=Object.values(gm);
+  /* history 去重不能比对象引用：两个 JSON.parse 出来的对象永远不相等，
+     于是每合并一次就多一条，字符串长度一直变 —— 云端每次同步都判成「词卡有变化」，
+     接着整页 reload 三个子台，用户看到的就是周期性卡死。改成按日期去重 + 排序（幂等）。 */
+  const hmap={};
+  const hkey=function(x){ return (x.d?'d:':'j:')+(x.d||JSON.stringify(x)); };
+  normHistory(a.history).forEach(x=&gt;{ if(x) hmap[hkey(x)]=x; });
+  normHistory(b.history).forEach(x=&gt;{
+    if(!x) return;
+    const k=hkey(x), p=hmap[k];
+    if(!p){ hmap[k]=x; return; }
+    const m=Object.assign({},p,x);
+    ['n','review','total','ok','new'].forEach(f=&gt;{ if(x[f]!==undefined||p[f]!==undefined) m[f]=Math.max(+x[f]||0,+p[f]||0); });
+    hmap[k]=m;
+  });
+  const ah=Object.keys(hmap).map(k=&gt;hmap[k]).sort((p,q)=&gt;String(p.d||'').localeCompare(String(q.d||''))).slice(-400);
+  const graves=Object.keys(gm).sort().map(k=&gt;gm[k]);
   const gset={};graves.forEach(g=&gt;{gset[g.id]=1;});
   const fw=aw.filter(w=&gt;!gset[w.id]);
   return JSON.stringify({words:fw,history:ah,graves:graves});
@@ -5066,7 +5079,31 @@ function loadWords(){
   return IDB.get(key).then(raw=&gt;{
     if(raw){ try{ const o=JSON.parse(raw); WORDS=Array.isArray(o.words)?o.words:[]; HISTORY=normHistory(o.history); GRAVES=Array.isArray(o.graves)?o.graves:[]; }catch(e){ WORDS=[]; HISTORY=[]; GRAVES=[]; } }
     else { WORDS=[]; HISTORY=[]; GRAVES=[]; }
+    /* 一次性修复：老版本的 mergeCardRaw 用对象引用去重 history，每同步一次就翻一倍，
+       实测云端已经攒了 30 万条（只有 5 个日期）—— 十几 MB 的数组，每次保存/同步都要
+       stringify 一遍，手机直接卡死。这里在加载时压回每天一条，并立刻写回。 */
+    try{
+      const fixed=dedupeHistory(HISTORY);
+      if(fixed.length!==HISTORY.length){ HISTORY=fixed; save(); }
+    }catch(e){}
   }).catch(()=&gt;{ WORDS=[]; HISTORY=[]; GRAVES=[]; });
+}
+/* history 按日期去重（同一天取较大的计数），只留最近 400 条 ——
+   mergeCardRaw 和加载时都用它，保证「同样的数据合并多少次结果都一样」。 */
+function dedupeHistory(h){
+  const m={};
+  (h||[]).forEach(function(x){
+    if(!x) return;
+    const k=x.d?('d:'+x.d):('j:'+JSON.stringify(x));
+    const p=m[k];
+    if(!p){ m[k]=x; return; }
+    const o=Object.assign({},p,x);
+    ['n','review','total','ok','new'].forEach(function(f){ if(x[f]!==undefined||p[f]!==undefined) o[f]=Math.max(+x[f]||0,+p[f]||0); });
+    m[k]=o;
+  });
+  const out=Object.keys(m).map(function(k){return m[k];});
+  out.sort(function(p,q){ return String(p.d||'').localeCompare(String(q.d||'')); });
+  return out.slice(-400);
 }
 function save(){
   try{
@@ -8751,7 +8788,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-11-02.42';
+const APP_BUILD='2026-11-02.43';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -9251,9 +9288,22 @@ function mergeCardRaw(aRaw,bRaw){
     delete map[aw[i].id];
   }
   Object.keys(map).forEach(id=>aw.push(map[id]));
-  const ah=normHistory(a.history).slice();
-  normHistory(b.history).forEach(x=>{ if(ah.indexOf(x)<0) ah.push(x); });
-  const graves=Object.values(gm);
+  /* history 去重不能比对象引用：两个 JSON.parse 出来的对象永远不相等，
+     于是每合并一次就多一条，字符串长度一直变 —— 云端每次同步都判成「词卡有变化」，
+     接着整页 reload 三个子台，用户看到的就是周期性卡死。改成按日期去重 + 排序（幂等）。 */
+  const hmap={};
+  const hkey=function(x){ return (x.d?'d:':'j:')+(x.d||JSON.stringify(x)); };
+  normHistory(a.history).forEach(x=>{ if(x) hmap[hkey(x)]=x; });
+  normHistory(b.history).forEach(x=>{
+    if(!x) return;
+    const k=hkey(x), p=hmap[k];
+    if(!p){ hmap[k]=x; return; }
+    const m=Object.assign({},p,x);
+    ['n','review','total','ok','new'].forEach(f=>{ if(x[f]!==undefined||p[f]!==undefined) m[f]=Math.max(+x[f]||0,+p[f]||0); });
+    hmap[k]=m;
+  });
+  const ah=Object.keys(hmap).map(k=>hmap[k]).sort((p,q)=>String(p.d||'').localeCompare(String(q.d||''))).slice(-400);
+  const graves=Object.keys(gm).sort().map(k=>gm[k]);
   const gset={};graves.forEach(g=>{gset[g.id]=1;});
   const fw=aw.filter(w=>!gset[w.id]);
   return JSON.stringify({words:fw,history:ah,graves:graves});
