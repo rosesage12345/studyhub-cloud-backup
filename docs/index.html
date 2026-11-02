@@ -4610,8 +4610,15 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .quiz-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .quiz-top .qstat{font-size:13px;color:var(--text2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px}
 .quiz-top select{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;color:var(--text);font-size:13px;outline:none}
-.prog{height:6px;background:var(--line);border-radius:999px;overflow:hidden;margin:10px 0 14px}
+.prog{height:6px;background:var(--line);border-radius:999px;overflow:hidden;margin:10px 0 14px;position:relative}
 .prog i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));border-radius:999px;transition:width .3s}
+/* 每 10 张一道刻度：进度条上直接看出一共有几组、现在在第几组 */
+.prog-ticks{position:absolute;inset:0;display:block;pointer-events:none}
+.prog-ticks b{position:absolute;top:0;bottom:0;width:2px;background:var(--card);opacity:.9}
+.quiz-grp{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12px;font-weight:700;color:var(--text2)}
+.quiz-grp::before,.quiz-grp::after{content:'';flex:1;height:1px;background:var(--line)}
+.quiz-grp.start{color:var(--brand)}
+.quiz-grp.start::before,.quiz-grp.start::after{background:var(--brand);opacity:.35}
 
 .cardbox{min-height:330px;cursor:pointer}
 .cardbox .flip-inner{position:relative;width:100%;height:420px}
@@ -4693,6 +4700,8 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .stat .n{font-size:26px;font-weight:800;color:var(--brand)}
 .stat .l{font-size:12px;color:var(--text2);margin-top:2px}
 .bars{display:flex;align-items:flex-end;gap:8px;height:140px;padding:0 4px;margin-top:10px}
+/* 最近 7 天全是 0：不画空柱子，给一句人话 */
+.stat-empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:22px 16px;margin-top:10px;text-align:center;font-size:13px;line-height:1.8;color:var(--text2)}
 .bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
 .bar i{width:100%;max-width:38px;border-radius:8px 8px 4px 4px;background:linear-gradient(180deg,var(--brand2),var(--brand));min-height:3px;transition:height .3s}
 .bar span{font-size:11px;color:var(--text2);margin-top:6px;white-space:nowrap}
@@ -4866,7 +4875,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--teal,#0d9488);cur
       &lt;/select&gt;
       &lt;span class=&quot;qstat&quot; id=&quot;quizStat&quot;&gt;0 词&lt;/span&gt;
     &lt;/div&gt;
-    &lt;div class=&quot;prog&quot;&gt;&lt;i id=&quot;quizProg&quot; style=&quot;width:0%&quot;&gt;&lt;/i&gt;&lt;/div&gt;
+    &lt;div class=&quot;prog&quot;&gt;&lt;i id=&quot;quizProg&quot; style=&quot;width:0%&quot;&gt;&lt;/i&gt;&lt;span class=&quot;prog-ticks&quot; id=&quot;quizTicks&quot;&gt;&lt;/span&gt;&lt;/div&gt;
     &lt;div id=&quot;quizBox&quot;&gt;&lt;/div&gt;
   &lt;/div&gt;
 
@@ -5507,6 +5516,7 @@ function renderQuiz(){
   const box=$('quizBox');
   if(!quizQueue.length || quizIdx&gt;=quizQueue.length){
     $('quizProg').style.width='100%';
+    const _tk=$('quizTicks'); if(_tk) _tk.innerHTML='';
     box.innerHTML='&lt;div class=&quot;quiz-done&quot;&gt;&lt;div class=&quot;done-ico&quot;&gt;'+DONE_SVG+'&lt;/div&gt;&lt;div class=&quot;big&quot;&gt;本轮过卡完成！&lt;/div&gt;'
       +'&lt;div class=&quot;done-stats&quot;&gt;做熟了 '+roundKnown+' 词 · 不会 '+roundUnknown+' 词&lt;/div&gt;'
       +'&lt;div class=&quot;sub&quot;&gt;'+doneCheer()+'&lt;/div&gt;'
@@ -5515,9 +5525,16 @@ function renderQuiz(){
       +'&lt;div class=&quot;sub&quot; style=&quot;margin-top:10px;font-size:12px;color:var(--text2)&quot;&gt;'+((function(){const k=noAutoSplitToday();return k?('已把今天的不会词自动按 '+NO_SPLIT_SIZE+' 个分成 '+k+' 组（part1、part2…）'):'';})())+'&lt;/div&gt;&lt;/div&gt;';
     return;
   }
-  $('quizProg').style.width=((quizIdx)/quizQueue.length*100)+'%';
+  const qlen=quizQueue.length, GP=10;
+  const gTotal=Math.ceil(qlen/GP), gIdx=Math.floor(quizIdx/GP);
+  const gFrom=gIdx*GP+1, gTo=Math.min(qlen,(gIdx+1)*GP);
+  const gStart=(quizIdx%GP===0);
+  $('quizProg').style.width=((quizIdx)/qlen*100)+'%';
+  const tickEl=$('quizTicks');
+  if(tickEl){ let th=''; for(let k=GP;k&lt;qlen;k+=GP){ th+='&lt;b style=&quot;left:'+(k/qlen*100)+'%&quot;&gt;&lt;/b&gt;'; } tickEl.innerHTML=th; }
   const w=quizQueue[quizIdx];
-  box.innerHTML='&lt;div class=&quot;cardbox&quot; onclick=&quot;flipCard()&quot;&gt;&lt;div class=&quot;flip-inner'+(quizFlipped?' flipped':'')+'&quot;&gt;'
+  box.innerHTML='&lt;div class=&quot;quiz-grp'+(gStart?' start':'')+'&quot;&gt;第 '+(gIdx+1)+' / '+gTotal+' 组'+(gStart?'开始':'')+' · 第 '+gFrom+'–'+gTo+' 张&lt;/div&gt;'
+    +'&lt;div class=&quot;cardbox&quot; onclick=&quot;flipCard()&quot;&gt;&lt;div class=&quot;flip-inner'+(quizFlipped?' flipped':'')+'&quot;&gt;'
     +'&lt;div class=&quot;face front show-anim&quot;&gt;&lt;span&gt;'+esc(w.w)+'&lt;/span&gt;'
     +'&lt;button class=&quot;spk&quot; onclick=&quot;event.stopPropagation();speakWord(\''+escAttr(w.w)+'\')&quot; title=&quot;朗读&quot;&gt;'+SPK_SVG+'&lt;/button&gt;&lt;/div&gt;'
     +'&lt;div class=&quot;face back show-anim&quot;&gt;'
@@ -5537,12 +5554,18 @@ function renderQuiz(){
     +'&lt;/div&gt;';
 }
 function flipCard(){quizFlipped=!quizFlipped;renderQuiz();}
+/* 每过完 10 张提示一次：十个十个背，正好是个歇脚点 */
+function quizGroupToast(){
+  if(quizIdx &amp;&amp; quizIdx%10===0 &amp;&amp; quizIdx&lt;quizQueue.length){
+    toast('第 '+(quizIdx/10)+' 组完成（'+quizIdx+' / '+quizQueue.length+'）· 歇口气再继续');
+  }
+}
 /* 只保留「做熟了 / 不会」两个按钮 */
 function markKnown(){
   const w=quizQueue[quizIdx];if(!w)return;
   w.mastered=true;w.wrong=0;
   bumpHistory('review');
-  roundKnown++;quizIdx++;quizFlipped=false;save();renderTop();renderQuiz();
+  roundKnown++;quizIdx++;quizFlipped=false;quizGroupToast();save();renderTop();renderQuiz();
 }
 function markUnknown(){
   const w=quizQueue[quizIdx];if(!w)return;
@@ -5552,7 +5575,7 @@ function markUnknown(){
   w.wrong=(w.wrong||0)+1;w.ts=todayStr();
   bumpHistory('new');
   roundUnknown++;
-  quizIdx++;quizFlipped=false;save();renderTop();renderQuiz();
+  quizIdx++;quizFlipped=false;quizGroupToast();save();renderTop();renderQuiz();
 }
 function _oldMarkUnused(){
   const w=quizQueue[quizIdx];if(!w)return;
@@ -6254,10 +6277,16 @@ function renderStats(){
   const days=[];
   for(let i=6;i&gt;=0;i--){const d=addDays(todayStr(),-i);const r=HISTORY.find(x=&gt;x.d===d);days.push({d:d,n:r?r.new:0,r:r?r.review:0});}
   const max=Math.max(1,...days.map(x=&gt;x.n+x.r));
+  const _allZero=days.every(function(x){ return !x.n&amp;&amp;!x.r; });
+  if(_allZero){
+    /* 全是 0 的时候别再画一片空柱子：给一句话 + 明确的下一步 */
+    h+='&lt;div class=&quot;stat-empty&quot;&gt;最近 7 天还没有学习记录。&lt;br&gt;过一轮卡、背一组钩子，这里就会长出柱子。&lt;/div&gt;';
+  }else{
   h+='&lt;div class=&quot;bars&quot;&gt;'+days.map(x=&gt;{
     const hh=Math.round((x.n+x.r)/max*100);
     return '&lt;div class=&quot;bar&quot;&gt;&lt;i style=&quot;height:'+hh+'%&quot;&gt;&lt;/i&gt;&lt;em&gt;'+(x.n+x.r)+'&lt;/em&gt;&lt;span&gt;'+x.d.slice(5)+'&lt;/span&gt;&lt;/div&gt;';
   }).join('')+'&lt;/div&gt;';
+  }
   
   
   h+='&lt;p class=&quot;muted&quot; style=&quot;margin-top:14px&quot;&gt;每完成一轮过卡都会记录一次。数据只存在本机浏览器，清除浏览器数据才会丢失。&lt;/p&gt;';
@@ -8202,9 +8231,10 @@ function schSlotForm(mode,day,stageIdx,slotIdx){
     +'<div class="fld"><label>老师</label><input id="sfTeacher" value="'+esc(c.teacher||'')+'" placeholder="可留空"></div>'
     +(isHer?'':('<div class="fld"><label>周次</label><input id="sfWeeks" value="'+esc(c.weeks||'')+'" placeholder="如：1-12周"></div>'
       +'<div class="fld"><label>课程号（可留空）</label><input id="sfCode" value="'+esc(c.code||'')+'"></div>'))
-    +'<p class="muted" style="font-size:12px;margin:2px 0 10px">课程名相同就是同一门课（改名字等于换课）；只改节次/教室不影响别处。</p>'
+    +'<p class="muted" style="font-size:12px;margin:2px 0 10px">改课程名会问你要不要「整门课一起改」；只改教室/节次只影响这一节。</p>'
     +'<div class="btn-row"><button class="btn primary" id="sfOK">保存</button>'
     +(slot?'<button class="btn danger" id="sfDel">删除这节</button>':'')
+    +(slot && schKeyUseCount(mode,slot.key)>1?'<button class="btn danger" id="sfDelAll">删整门课</button>':'')
     +'<button onclick="closeHubModal()">取消</button></div>';
   hubModal(html);
   $('sfOK').addEventListener('click',function(){
@@ -8215,7 +8245,19 @@ function schSlotForm(mode,day,stageIdx,slotIdx){
     const teacher=$('sfTeacher').value.trim();
     const weeks=isHer?'每周固定':(($('sfWeeks')&&$('sfWeeks').value.trim())||'');
     const code=isHer?'':(($('sfCode')&&$('sfCode').value.trim())||'');
-    const key=schCourseKeyFor(dict,name,teacher,weeks,code);
+    let key;
+    const oldKey=slot?slot.key:'';
+    const oldName=oldKey?((dict[oldKey]||{}).name||''):'';
+    const shared=oldKey?schKeyUseCount(mode,oldKey):0;
+    if(slot && oldKey && oldName && oldName!==name && shared>1 &&
+       confirm('「'+oldName+'」在这张课表里一共 '+shared+' 节。\n要不要整门课一起改名？\n\n确定＝全部改成「'+name+'」；取消＝只改这一节')){
+      /* 修改科目：整门课一起改（课程名/老师/周次/课程号） */
+      dict[oldKey].name=name; dict[oldKey].teacher=teacher; dict[oldKey].weeks=weeks;
+      if(code) dict[oldKey].code=code; else delete dict[oldKey].code;
+      key=oldKey;
+    } else {
+      key=schCourseKeyFor(dict,name,teacher,weeks,code);
+    }
     /* 同一时段已经有课 → 问一句，别悄悄叠上去 */
     const clash=dd.slots.filter(function(s){ return s!==slot && schSegOverlap(s.sec,sec); });
     if(clash.length){
@@ -8230,7 +8272,31 @@ function schSlotForm(mode,day,stageIdx,slotIdx){
   });
   if(slot){
     $('sfDel').addEventListener('click',function(){ schSlotDel(mode,day,stageIdx,dd.slots.indexOf(slot)); });
+    if(schKeyUseCount(mode,slot.key)>1){
+      $('sfDelAll').addEventListener('click',function(){ schCourseDel(mode,slot.key,(dict[slot.key]||{}).name||''); });
+    }
   }
+}
+/* 整门课（所有节次）一起删 */
+function schCourseDel(mode,key,name){
+  const n=schKeyUseCount(mode,key);
+  if(!n) return;
+  if(!confirm('把「'+name+'」整门课删掉？它在这张课表里有 '+n+' 节。')) return;
+  if(mode==='her'){
+    SCH_HER_WEEK.forEach(function(d){ d.slots=(d.slots||[]).filter(function(s){return s.key!==key;}); });
+    delete SCH_HER[key];
+  }else{
+    SCH_STAGES.forEach(function(st){ (st.days||[]).forEach(function(d){ d.slots=(d.slots||[]).filter(function(s){return s.key!==key;}); }); });
+    delete SCH_MY[key];
+  }
+  schSaveData(); closeHubModal(); schRender(); toast('已删除整门课：'+name);
+}
+/* 这门课在这张课表里占了几节 */
+function schKeyUseCount(mode,key){
+  let n=0;
+  if(mode==='her'){ SCH_HER_WEEK.forEach(function(d){ (d.slots||[]).forEach(function(s){ if(s.key===key)n++; }); }); }
+  else { SCH_STAGES.forEach(function(st){ (st.days||[]).forEach(function(d){ (d.slots||[]).forEach(function(s){ if(s.key===key)n++; }); }); }); }
+  return n;
 }
 function schSlotDel(mode,day,stageIdx,slotIdx){
   const dd=schSlotDay(mode,day,stageIdx);
@@ -8611,7 +8677,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-10-27.40';
+const APP_BUILD='2026-11-02.41';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
@@ -10036,6 +10102,7 @@ async function cloudRestore(quiet){
     }
     buf.keys=keys;buf.cards=cards;buf.manifest=m;buf.meta=m.meta||{};buf.src='api';
     restoreProgressHide();
+    if(window._cloudAbort){ window._cloudAbort=false; toast('已取消恢复，本机数据未改动'); return; }
     await applyCloudData(buf,{quiet:!!quiet});
   }catch(e){ restoreProgressHide(); toast('恢复失败：'+e.message); }
 }
@@ -10138,15 +10205,34 @@ async function applyCloudData(o,opt){
   setTimeout(()=>location.reload(),900);
 }
 
-/* 恢复下载进度提示 */
+/* 恢复下载进度提示
+   注意：这是一个**全屏遮挡**。以前没有取消按钮、也没有超时兜底 ——
+   只要某个请求一直不返回（网络半死不活时很常见），这层就一直盖着转圈，
+   用户看到的就是「卡死了」。现在 20 秒后给一个「取消」出口。 */
+let _rpTimer=null;
 function restoreProgress(msg){
   const mask=document.getElementById('syncMask');
   document.getElementById('syncBox').innerHTML=
     '<div style="text-align:center;padding:10px"><svg width="42" height="42" viewBox="0 0 24 24" style="animation:rpspin 0.9s linear infinite" fill="none" stroke="#14b8a6" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>'
     +'<div style="margin-top:14px">'+msg+'</div></div><style>@keyframes rpspin{to{transform:rotate(360deg)}}</style>';
   mask.style.display='flex';
+  clearTimeout(_rpTimer);
+  _rpTimer=setTimeout(function(){
+    const box=document.getElementById('syncBox');
+    if(mask.style.display==='flex' && box && !document.getElementById('rpCancel')){
+      const d=document.createElement('div');
+      d.style.cssText='margin-top:16px;font-size:12.5px;color:var(--text2);line-height:1.9';
+      d.innerHTML='网络好像卡住了？<br><button id="rpCancel" class="btn small" onclick="restoreProgressCancel()">取消，先不用云端</button>';
+      box.appendChild(d);
+    }
+  },20000);
 }
-function restoreProgressHide(){document.getElementById('syncMask').style.display='none';}
+function restoreProgressHide(){ clearTimeout(_rpTimer); document.getElementById('syncMask').style.display='none'; }
+function restoreProgressCancel(){
+  window._cloudAbort=true;
+  restoreProgressHide();
+  toast('已取消恢复；需要时到「数据同步」里重新拉取');
+}
 
 /* ---------- 自动同步：数据变化防抖自动上传 ---------- */
 const autoSync={
