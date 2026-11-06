@@ -3094,6 +3094,11 @@ h3{font-size:16px;margin-bottom:10px;color:var(--brand-ink)}
 .crumb button{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 12px;min-height:36px;font-size:13px;color:var(--text2);cursor:pointer}
 .crumb b{color:var(--brand-ink)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+/* 选择刷哪一套题库 */
+.ptool{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px}
+.ptool-lb{font-size:13px;color:var(--text2);font-weight:700;flex:none}
+.pbanksel{flex:1;min-width:170px;min-height:42px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 10px;font-size:14px}
+.ptool-n{font-size:12px;color:var(--text2)}
 .imp-hint{font-size:13px;color:var(--text2);background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px}
 .imp-hint.bad{color:var(--bad);background:var(--bad-soft)}
 @media (max-width:520px){.topbar{position:static}.tabs{overflow-x:auto;flex-wrap:nowrap}.tab{white-space:nowrap;padding:10px 12px}}
@@ -3131,6 +3136,11 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--pink,#ec4899);cur
   &lt;!-- ===== 视图：开始练习 ===== --&gt;
   &lt;section class=&quot;view active&quot; id=&quot;view-practice&quot;&gt;
     &lt;div class=&quot;card&quot;&gt;
+      &lt;div class=&quot;ptool&quot;&gt;
+        &lt;span class=&quot;ptool-lb&quot;&gt;刷哪套&lt;/span&gt;
+        &lt;select id=&quot;pBankSel&quot; class=&quot;pbanksel&quot; onchange=&quot;setBank(this.value)&quot;&gt;&lt;/select&gt;
+        &lt;span class=&quot;ptool-n&quot; id=&quot;pBankN&quot;&gt;&lt;/span&gt;
+      &lt;/div&gt;
       &lt;div class=&quot;toolbar&quot; id=&quot;pModePills&quot;&gt;&lt;/div&gt;
       &lt;div class=&quot;toolbar&quot; id=&quot;pLevelPills&quot;&gt;&lt;/div&gt;
       &lt;div class=&quot;progress&quot; id=&quot;pProgress&quot;&gt;&lt;/div&gt;
@@ -3177,6 +3187,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--pink,#ec4899);cur
       &lt;/div&gt;
       &lt;div class=&quot;fld&quot; style=&quot;margin-top:14px&quot;&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; id=&quot;setDark&quot; style=&quot;width:auto;min-height:auto&quot;&gt; 深色模式&lt;/label&gt;&lt;/div&gt;
       &lt;div class=&quot;fld&quot;&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; id=&quot;setSound&quot; style=&quot;width:auto;min-height:auto&quot;&gt; 判题音效&lt;/label&gt;&lt;/div&gt;
+      &lt;div class=&quot;fld&quot; style=&quot;margin-top:10px&quot;&gt;&lt;label&gt;内置题库&lt;/label&gt;&lt;div class=&quot;muted&quot; style=&quot;font-size:12px;margin:4px 0 8px&quot;&gt;删掉的化工 / GMP / 中药题库，可以在这里一键补回（解析会一起补上）&lt;/div&gt;&lt;button class=&quot;btn&quot; onclick=&quot;bankTombClear()&quot;&gt;恢复内置题库&lt;/button&gt;&lt;/div&gt;
       &lt;div class=&quot;btn-row&quot;&gt;
         &lt;button class=&quot;btn&quot; id=&quot;backupGo&quot;&gt;导出全部数据&lt;/button&gt;
         &lt;button class=&quot;btn&quot; id=&quot;restoreGo&quot;&gt;导入数据恢复&lt;/button&gt;
@@ -3229,11 +3240,14 @@ const BUILTIN_BANKS=[
 function seedHgQuiz(){
   var added=0, names=[];
   try{
+    var del=bankTomb();
     BUILTIN_BANKS.forEach(function(b){
+      /* 你亲手删掉的题库不要再自动补回来（除非在设置里点「恢复内置题库」） */
+      if(del[b.subj+'|||'+b.bank]) return;
       var has=false;
-      for(var i=0;i&lt;QUESTIONS.length;i++){
+      for(var i=0;i<QUESTIONS.length;i++){
         var q=QUESTIONS[i];
-        if(q&amp;&amp;q.subj===b.subj&amp;&amp;q.bank===b.bank){ has=true; break; }
+        if(q&&q.subj===b.subj&&q.bank===b.bank){ has=true; break; }
       }
       if(has) return;
       b.items.forEach(function(x){ QUESTIONS.push(JSON.parse(JSON.stringify(x))); });
@@ -3242,6 +3256,39 @@ function seedHgQuiz(){
     if(added){ save(); if(typeof toast==='function') toast('已导入内置题库：'+names.join('、')+'（共 '+added+' 题）'); }
   }catch(e){}
   return added;
+}
+/* 被删掉的内置题库墓碑：{ '学科|||题库': 1 } —— 否则刷新一次又自动补回来 */
+function bankTomb(){
+  try{ return JSON.parse(localStorage.getItem('kys_bank_del')||'{}')||{}; }catch(e){ return {}; }
+}
+function bankTombAdd(subj,bank){
+  try{
+    var d=bankTomb(); d[subj+'|||'+bank]=1;
+    localStorage.setItem('kys_bank_del',JSON.stringify(d));
+  }catch(e){}
+}
+function bankTombClear(){
+  try{ localStorage.removeItem('kys_bank_del'); }catch(e){}
+  var n=seedHgQuiz();
+  save(); renderBank(); renderBankPills(); renderTop(); renderPractice();
+  toast(n?('已恢复 '+n+' 道内置题'):'内置题库都已经在了');
+}
+/* 内置题库后来补的「解析」和修正过的答案：按题目 id 同步到本机已有的题上，
+   不用重新导入，也不会覆盖你自己改过的其它字段。 */
+const BUILTIN_ANALYSIS={&quot;hg-001&quot;:&quot;时间常数越小，对象响应越快、到达新稳态所需时间越短，题干说反了。&quot;,&quot;hg-002&quot;:&quot;绝对误差相同时，标尺范围越小相对百分误差越大，精度反而更低。&quot;,&quot;hg-003&quot;:&quot;放大系数 K 是稳态输出变化量与输入变化量之比，K 越大同样扰动下最终变化越大。&quot;,&quot;hg-004&quot;:&quot;副回路只能抑制进入副回路的干扰，主回路侧的干扰仍要靠主回路克服。&quot;,&quot;hg-005&quot;:&quot;电容式物位计靠介电常数变化测量，液位、料位都能测。&quot;,&quot;hg-006&quot;:&quot;三线制可抵消连接导线电阻随环境温度变化带来的附加误差。&quot;,&quot;hg-007&quot;:&quot;补偿导线必须与热电偶分度号配套，不同分度号不能通用。&quot;,&quot;hg-008&quot;:&quot;铂电阻精度高、稳定性好，是常用的热电阻材料。&quot;,&quot;hg-009&quot;:&quot;零点迁移只改变测量范围上下限，量程（上下限之差）不变。&quot;,&quot;hg-010&quot;:&quot;前馈是按扰动直接补偿的开环控制，且只能克服可测干扰。&quot;,&quot;hg-011&quot;:&quot;应做冷端补偿（按分度表折算），不能把冷端温度简单相加。&quot;,&quot;hg-012&quot;:&quot;先慢后快再变慢是容量滞后（惯性）的表现；传递滞后是纯延迟。&quot;,&quot;hg-013&quot;:&quot;先开平衡阀使正负压室压力平衡，再开切断阀，避免单向受压损坏差压计。&quot;,&quot;hg-014&quot;:&quot;同种金属接触不产生热电势，总电势为零。&quot;,&quot;hg-015&quot;:&quot;临界比例度法要让系统出现等幅振荡，读临界比例度和振荡周期。&quot;,&quot;hg-016&quot;:&quot;操纵变量是调节手段，工艺指标通常是被控变量。&quot;,&quot;hg-017&quot;:&quot;干扰通道的纯滞后不影响控制质量，控制通道的纯滞后才影响。&quot;,&quot;hg-018&quot;:&quot;DCS 全称 Distributed（Distribute）Control System，即集散控制系统。&quot;,&quot;hg-019&quot;:&quot;DCS 的显著特点是管理集中、控制分散。&quot;,&quot;hg-020&quot;:&quot;量程是测量上限与下限之差，与测量范围概念一致。&quot;,&quot;hg-021&quot;:&quot;给定值是设定值，测量值是被控变量的实际值，两者不同。&quot;,&quot;hg-022&quot;:&quot;给定值按生产要求人为设定，是控制系统的目标值。&quot;,&quot;hg-023&quot;:&quot;比例度与放大倍数成反比：比例度越大，放大倍数越小、比例作用越弱。&quot;,&quot;hg-024&quot;:&quot;冷端需延伸到温度稳定处，必须用与热电偶匹配的补偿导线。&quot;,&quot;hg-025&quot;:&quot;热电阻适合中低温、精度高；热电偶适合高温、范围宽。&quot;,&quot;hg-026&quot;:&quot;金属导体电阻随温度升高而增大（正温度系数），不是减小。&quot;,&quot;hg-027&quot;:&quot;热端与冷端温度相同就没有温差，热电势为零。&quot;,&quot;hg-028&quot;:&quot;热电阻测中低温精度高，热电偶测高温更合适。&quot;,&quot;hg-029&quot;:&quot;干扰就是引起被调量偏离给定值的各种因素。&quot;,&quot;hg-030&quot;:&quot;闭环控制依靠反馈比较偏差，没有反馈就不成闭环。&quot;,&quot;hg-031&quot;:&quot;串级是主、副两个控制器串联工作，不是把系统各环节简单串起来。&quot;,&quot;hg-032&quot;:&quot;串级主回路是定值控制，副回路跟随主控制器输出，是随动系统。&quot;,&quot;hg-033&quot;:&quot;测量值增大、输出也增大的是正作用；反之为反作用。&quot;,&quot;hg-034&quot;:&quot;凝液管内蒸汽冷凝成水，防止高温蒸汽直接进入弹簧管。&quot;,&quot;hg-035&quot;:&quot;灵敏度高只说明反应灵敏，精度还取决于误差大小和稳定性。&quot;,&quot;hg-036&quot;:&quot;PID 三个可调参数就是比例度（或比例增益）、积分时间、微分时间。&quot;,&quot;hg-037&quot;:&quot;增大积分时间削弱积分作用、加大比例度削弱比例作用，都能让系统更稳定。&quot;,&quot;hg-038&quot;:&quot;热电阻测电阻值，不需要像热电偶那样做冷端补偿。&quot;,&quot;hg-039&quot;:&quot;消除余差靠积分作用；微分只能超前调节，不能消除余差。&quot;,&quot;hg-040&quot;:&quot;比例度越大，比例控制越弱，残余偏差越大。&quot;,&quot;hg-041&quot;:&quot;比例度 δ=1/K×100%，与放大倍数成倒数关系，不是同一个量。&quot;,&quot;hg-042&quot;:&quot;简单控制系统由测量变送器、调节器、执行器、被控对象四个环节组成。&quot;,&quot;hg-043&quot;:&quot;积分作用可消除余差，这是它最主要的用途。&quot;,&quot;hg-044&quot;:&quot;双金属温度计利用两种金属热膨胀系数不同而弯曲。&quot;,&quot;hg-045&quot;:&quot;积分作用能彻底消除余差；比例、微分都有余差。&quot;,&quot;hg-046&quot;:&quot;介质输送、能量传递、信号传输造成的滞后叫传递滞后。&quot;,&quot;hg-047&quot;:&quot;取压点应选直管段，避开弯头、拐弯处，否则测不准。&quot;,&quot;hg-048&quot;:&quot;理想流量特性只由阀芯形状决定，与实际压差无关。&quot;,&quot;hg-049&quot;:&quot;直通单座阀泄漏量小，适合压差小、要求严密的场合。&quot;,&quot;hg-050&quot;:&quot;超驰控制在异常工况自动切换回路，优先保障设备安全。&quot;,&quot;hg-051&quot;:&quot;MPC 用对象模型预测未来输出，滚动优化并反馈校正。&quot;,&quot;hg-052&quot;:&quot;干扰通道的纯滞后不影响控制质量；控制通道的纯滞后才影响。&quot;,&quot;hg-053&quot;:&quot;应变式压力计属于电气式，不是弹性式（膜片、波纹管、弹簧管才是）。&quot;,&quot;hg-054&quot;:&quot;DCS 中文全称是集散控制系统。&quot;,&quot;hg-055&quot;:&quot;积分时间越小、积分作用越强；比例度越大、比例作用越弱。&quot;,&quot;hg-056&quot;:&quot;积分作用具有消除余差的功能。&quot;,&quot;hg-057&quot;:&quot;前馈按扰动补偿，不需要反馈，属于开环控制。&quot;,&quot;hg-058&quot;:&quot;等百分比（对数）特性小开度平缓、大开度灵敏。&quot;,&quot;hg-059&quot;:&quot;热电偶测温基于热电效应（塞贝克效应）。&quot;,&quot;hg-060&quot;:&quot;双金属温度计利用两种金属热膨胀不同制成。&quot;,&quot;hg-061&quot;:&quot;补偿导线把冷端延到温度稳定的控制室，减少冷端误差。&quot;,&quot;hg-062&quot;:&quot;控制器正反作用按生产安全性确定，保证整个系统是负反馈。&quot;,&quot;hg-063&quot;:&quot;余差＝过渡终了的新稳态值与给定值之差。&quot;,&quot;hg-064&quot;:&quot;均匀控制让两个变量都在允许范围内缓慢变化，而不是卡死一个。&quot;,&quot;hg-065&quot;:&quot;数字调节器一般接收数字量或通信信号，4~20mA 需经 A/D 转换，故原题把它列为不正确说法。&quot;,&quot;hg-066&quot;:&quot;活塞式压力计精度最高，作为标准器检定其他压力表。&quot;,&quot;hg-067&quot;:&quot;被测压力最小值应不低于满量程的 1/3，否则相对误差太大。&quot;,&quot;hg-068&quot;:&quot;导电液体液位变化改变极板间介质的介电常数，从而改变电容量。&quot;,&quot;hg-069&quot;:&quot;比值控制保持两种物料流量比值恒定。&quot;,&quot;hg-070&quot;:&quot;0.2/16=1.25%，精度等级数值要大于等于它，选 1.5 级。&quot;,&quot;hg-071&quot;:&quot;取压口应与流体流动方向垂直，避免动压影响。&quot;,&quot;hg-072&quot;:&quot;P&amp;ID 即管道及仪表流程图：用文字代号和图形符号标出测量点、控制点、控制回路与联锁保护。&quot;,&quot;hg-073&quot;:&quot;四个参数分别描述对象的稳态增益、响应快慢和两种滞后（纯滞后、容量滞后）。&quot;,&quot;hg-074&quot;:&quot;两种金属电子密度不同，接触处形成电场，扩散与电场达到平衡，温差越大扩散越强、电势越大。&quot;,&quot;hg-075&quot;:&quot;P 快但有余差；PI 消余差但积分慢、易振荡；PD 超前但有余差；PID 质量最高但整定麻烦。&quot;,&quot;hg-076&quot;:&quot;操纵变量是克服干扰、实现控制的手段；选择时看工艺允许、控制通道灵敏、经济合理。&quot;,&quot;hg-077&quot;:&quot;流量特性是相对流量与相对开度的关系；压差不变时叫理想流量特性，分直线、等百分比、抛物线、快开四种。&quot;,&quot;hg-078&quot;:&quot;对象看操纵变量增大时被控变量升还是降；执行器看气开（正）/气关（反）；控制器按\&quot;对象×阀×控制器=负\&quot;确定。&quot;,&quot;hg-079&quot;:&quot;热电阻基于电阻随温度变化，精度高、适合中低温；热电偶基于热电效应，量程宽、适合高温。&quot;,&quot;hg-080&quot;:&quot;允许误差 9/1000=0.9%，1.0 级（±1.0%）超标，必须选 0.5 级。&quot;,&quot;hg-081&quot;:&quot;相对百分误差 4/600≈0.67%，选 1.0 级即可满足。&quot;,&quot;hg-082&quot;:&quot;PI 为压力指示（就地），FRC 为流量记录控制（盘装）；位号第 2 位是工段号、后两位是序号。&quot;,&quot;hg-083&quot;:&quot;TI 为温度指示（就地），LICA 为液位指示报警控制（盘装）；同样按\&quot;功能字母+工段+序号\&quot;读。&quot;,&quot;hg-084&quot;:&quot;对照课本 P8 图 1-8，逐个认出测量点、控制回路和仪表位号。&quot;,&quot;hg-085&quot;:&quot;按过渡曲线读稳态值、第一/第二峰值算 A、n、C、T、ts，再看 A 是否≤7℃。注意原卷该题解与原图错位。&quot;,&quot;hg-086&quot;:&quot;A=168-140=28℃；超调 24℃；B2=6℃，n=4；余差 4℃；T=22s；ts=36s；A&lt;40、C&lt;5 满足要求。&quot;,&quot;hg-087&quot;:&quot;对象加热炉、变量原料油出口温度、操纵变量燃料气流量；干扰列 4 种以上；阀气开、控制器反作用。&quot;,&quot;hg-088&quot;:&quot;对象反应器、变量反应器内温度、操纵变量冷却水流量；温度过高危险→气关阀；控制器反作用。&quot;,&quot;hg-089&quot;:&quot;对象换热器、变量物料出口温度、操纵变量热载体流量；物料温度不能太高→气关阀；控制器反作用。&quot;,&quot;gmp-001&quot;:&quot;批号一般按\&quot;年月日+流水号\&quot;编排，前两位是年份（25=2025 年）。&quot;,&quot;gmp-002&quot;:&quot;有效期由稳定性考察数据确定，不是按生产日期拍脑袋。&quot;,&quot;gmp-003&quot;:&quot;被污染的药品属劣药；以非药品冒充药品、变质、超适应症都按假药论处。&quot;,&quot;gmp-004&quot;:&quot;5M1E 中 E 是 Environment 环境（人、机、料、法、环、测）。&quot;,&quot;gmp-005&quot;:&quot;玻璃容器耐高温，用干热灭菌（可同时除热原）。&quot;,&quot;gmp-006&quot;:&quot;GMP 的核心目标是确保药品质量，不是产量或成本。&quot;,&quot;gmp-007&quot;:&quot;\&quot;三全\&quot;＝全效益（全效率）、全系统、全员参加，没有\&quot;全周期\&quot;。&quot;,&quot;gmp-008&quot;:&quot;操作规范即 SOP（Standard Operating Procedure）。&quot;,&quot;gmp-009&quot;:&quot;反渗透靠压力差作推动力，克服渗透压使溶剂反向透过。&quot;,&quot;gmp-010&quot;:&quot;21 世纪质量战略目标是顾客满意。&quot;,&quot;gmp-011&quot;:&quot;循环管路冲洗至出水 pH 为 7，接近中性才算合格。&quot;,&quot;gmp-012&quot;:&quot;革兰氏阴性杆菌细胞壁的脂多糖是内毒素，致热原性最强。&quot;,&quot;gmp-013&quot;:&quot;批生产记录至少保存至药品有效期后一年。&quot;,&quot;gmp-014&quot;:&quot;GMP 不以降低生产成本为目的，降成本不能牺牲质量。&quot;,&quot;gmp-015&quot;:&quot;《疫苗管理法》2019 年 12 月 1 日起施行。&quot;,&quot;gmp-016&quot;:&quot;药典规定注射用水由纯化水经蒸馏制得，所以原水是纯化水。&quot;,&quot;gmp-017&quot;:&quot;C 级洁净区与一般区之间压差不低于 10 Pa。&quot;,&quot;gmp-018&quot;:&quot;按日常监测惯例，A 级浮游菌为 1 次/周（此题原卷无答案，考前请核对）。&quot;,&quot;gmp-019&quot;:&quot;疫苗一般 2~8℃ 冷藏保存，不能冻结。&quot;,&quot;gmp-020&quot;:&quot;乙醇是常用消毒剂；甲苯、乙醚、氯仿是溶剂不是消毒剂。&quot;,&quot;gmp-021&quot;:&quot;纯化水以饮用水（自来水）为原水，经蒸馏、离子交换、反渗透等制得。&quot;,&quot;gmp-022&quot;:&quot;QA＝Quality Assurance 质量保证；QC 才是质量控制。&quot;,&quot;gmp-023&quot;:&quot;上市许可持有人对药品全生命周期的质量负全部责任。&quot;,&quot;gmp-024&quot;:&quot;批号前四位是年月（1609＝2016 年 9 月）。&quot;,&quot;gmp-025&quot;:&quot;GMP＝药品生产质量管理规范。&quot;,&quot;gmp-026&quot;:&quot;药物警戒起源于药品不良反应监测制度。&quot;,&quot;gmp-027&quot;:&quot;非最终灭菌无菌药品的分装、灌装等在 B 级背景下的 A 级进行。&quot;,&quot;gmp-028&quot;:&quot;召回的根本出发点是消除药品安全风险，保护公众健康。&quot;,&quot;gmp-029&quot;:&quot;普通纱布不是空气净化过滤介质，初/中/高效过滤器才是。&quot;,&quot;gmp-030&quot;:&quot;放行负责人可由质量管理部门负责人担任，生产、销售、研发负责人不能兼任。&quot;,&quot;gmp-031&quot;:&quot;PDCA 的 C＝Check 检查，对应\&quot;检查对策效果、找出问题\&quot;。&quot;,&quot;gmp-032&quot;:&quot;试车提速和升压都要从低到高，逐级进行。&quot;,&quot;gmp-033&quot;:&quot;同样，批号前四位是年月（2109＝2021 年 9 月）。&quot;,&quot;gmp-034&quot;:&quot;ICH＝国际人用药品注册技术协调会。&quot;,&quot;gmp-035&quot;:&quot;P2 为基础实验室（P4 才是最高防护实验室）。&quot;,&quot;gmp-036&quot;:&quot;参数放行只适用于湿热灭菌（终端灭菌）产品。&quot;,&quot;gmp-037&quot;:&quot;注射用水内毒素限值为 0.25 EU/mL。&quot;,&quot;gmp-038&quot;:&quot;同第 2 题，有效期由稳定性考察数据确定。&quot;,&quot;gmp-039&quot;:&quot;放行职责只能由药品放行负责人（质量受权人）承担。&quot;,&quot;gmp-040&quot;:&quot;发现安全隐患应立即启动产品召回程序。&quot;,&quot;gmp-041&quot;:&quot;按疫苗生产要求，自主种子批代次至少超过疫苗中病毒代次 5 代（原卷无答案，请核对）。&quot;,&quot;gmp-042&quot;:&quot;OTC 甲类标识为红底白字，乙类为绿底白字。&quot;,&quot;gmp-043&quot;:&quot;疫苗生产不得加入青霉素类抗生素，防过敏风险。&quot;,&quot;gmp-044&quot;:&quot;最新版《中国药典》为 2025 年版。&quot;,&quot;gmp-045&quot;:&quot;同第 2 题，有效期依据稳定性考察数据。&quot;,&quot;gmp-046&quot;:&quot;同第 25 题，GMP 即药品生产质量管理规范。&quot;,&quot;gmp-047&quot;:&quot;洁净室明管应采用不锈钢，光滑不产尘、易清洁。&quot;,&quot;gmp-048&quot;:&quot;OTC 乙类为绿底白字。&quot;,&quot;gmp-049&quot;:&quot;P1 级对健康成人、动植物不致病，危害最低。&quot;,&quot;gmp-050&quot;:&quot;疫苗培养基不含人血清，避免引入外源因子。&quot;,&quot;gmp-051&quot;:&quot;按疫苗研发要求，至少从 10 株毒株中筛选（原卷无答案，请核对）。&quot;,&quot;gmp-052&quot;:&quot;USP＝美国药典；中国药典是 ChP。&quot;,&quot;gmp-053&quot;:&quot;QC＝Quality Control 质量控制。&quot;,&quot;gmp-054&quot;:&quot;同第 7 题，\&quot;三全\&quot;里没有\&quot;全周期\&quot;。&quot;,&quot;gmp-055&quot;:&quot;不同级别洁净区之间压差不低于 10 Pa。&quot;,&quot;gmp-056&quot;:&quot;提速试车和升压都从低到高。&quot;,&quot;gmp-057&quot;:&quot;A 级（静态）≥0.5μm 悬浮粒子限度为 3520 个/m³。&quot;,&quot;gmp-058&quot;:&quot;环氧乙烷是常用气体灭菌剂。&quot;,&quot;gmp-059&quot;:&quot;留样数量要满足鉴别和检验的需要（至少两倍全检量）。&quot;,&quot;gmp-060&quot;:&quot;5M1E 的\&quot;料\&quot;指物料、原辅料和包装材料。&quot;,&quot;gmp-061&quot;:&quot;药品适用性质量五特性：安全性、有效性、稳定性、均一性、经济性。&quot;,&quot;gmp-062&quot;:&quot;物料标识最关键的是品名、批号、状态，防止混淆和差错。&quot;,&quot;gmp-063&quot;:&quot;注射用水靠蒸馏去除热原。&quot;,&quot;gmp-064&quot;:&quot;批号要唯一、可追溯。&quot;,&quot;gmp-065&quot;:&quot;《药品生产许可证》有效期 5 年，到期需重新审查。&quot;,&quot;gmp-066&quot;:&quot;GMP 文件分标准类文件（标准、规程）和记录类文件两大类。&quot;,&quot;gmp-067&quot;:&quot;ISO 5 相当于 FDA 的 Class 100，与我国 GMP 的 A 级大体相当。&quot;,&quot;gmp-068&quot;:&quot;病原微生物四类中，第四类一般不会引起人类疾病。&quot;,&quot;gmp-069&quot;:&quot;成为持有人首先要取得药品注册证书（批准文号）。&quot;,&quot;gmp-070&quot;:&quot;影响药品质量的六大要素简称 5M1E。&quot;,&quot;gmp-071&quot;:&quot;注射用水应在 70℃ 以上保温循环，抑制微生物滋生。&quot;,&quot;gmp-072&quot;:&quot;质量风险＝危害发生的可能性 × 严重程度。&quot;,&quot;gmp-073&quot;:&quot;干热灭菌常用 160℃×2h、170℃×1h 或 180℃×30min。&quot;,&quot;gmp-074&quot;:&quot;无菌过滤的药液在 C 级区配制，过滤在 A/B 级。&quot;,&quot;gmp-075&quot;:&quot;疫苗实行批签发制度，每批检验合格才能上市。&quot;,&quot;gmp-076&quot;:&quot;全生命周期管理确保药品安全、有效、质量可控。&quot;,&quot;gmp-077&quot;:&quot;药品召回分一级、二级、三级。&quot;,&quot;gmp-078&quot;:&quot;试运行每次转速试验不少于 30min，最高转速不少于 10min（以说明书为准）。&quot;,&quot;gmp-079&quot;:&quot;通过空气净化、过滤、消毒等方法建立洁净环境。&quot;,&quot;gmp-080&quot;:&quot;《药品管理法》里的药品使用范围仅限\&quot;人\&quot;。&quot;,&quot;gmp-081&quot;:&quot;MRP 三个输入：主生产计划、物料清单、库存信息。&quot;,&quot;gmp-082&quot;:&quot;关键生产区域采用洁净设计（洁净区/洁净厂房）。&quot;,&quot;gmp-083&quot;:&quot;常用化学气体消毒剂是环氧乙烷。&quot;,&quot;gmp-084&quot;:&quot;总图布置要满足工艺流畅、物流合理、防止污染。&quot;,&quot;gmp-085&quot;:&quot;非最终灭菌工艺适用于不耐热（热敏性）药物的注射剂。&quot;,&quot;gmp-086&quot;:&quot;无菌生产环境一般 18~26℃、相对湿度 45%~65%。&quot;,&quot;gmp-087&quot;:&quot;GMP 已成为国际通用的药品生产与质量管理基本要求。&quot;,&quot;gmp-088&quot;:&quot;清洁验证残留限度常用 10 ppm。&quot;,&quot;gmp-089&quot;:&quot;GMP 发展趋势：国际化、标准化、现代化、信息化和质量风险管理。&quot;,&quot;gmp-090&quot;:&quot;疫苗管理坚持安全第一、风险管理、全程管控、科学监督、社会共治。&quot;,&quot;gmp-091&quot;:&quot;三色标志：黄色＝留检，绿色＝合格，红色＝不合格（禁用）。&quot;,&quot;gmp-092&quot;:&quot;洁净区与非洁净区压差不低于 10 Pa。&quot;,&quot;gmp-093&quot;:&quot;厂房组成形式分单体式和组合式。&quot;,&quot;gmp-094&quot;:&quot;OTC 甲类为红色标识，需在医师指导下使用。&quot;,&quot;gmp-095&quot;:&quot;确保全生命周期质量安全的重要方法是建立质量管理体系（含质量风险管理）。&quot;,&quot;gmp-096&quot;:&quot;无菌操作区不得设可开启窗户，防止外界污染。&quot;,&quot;gmp-097&quot;:&quot;原料药精烘包车间常见一字形、回形、U 形布置。&quot;,&quot;gmp-098&quot;:&quot;操作标准常表述为标准操作规程（SOP）。&quot;,&quot;gmp-099&quot;:&quot;五个要点：注册证书、生产能力、生产许可证、符合国家标准、健全的质量管理体系。&quot;,&quot;gmp-100&quot;:&quot;偏差流程：报告→调查→纠正预防措施→报告与时限→趋势分析→记录归档。&quot;,&quot;tcm-001&quot;:&quot;炮制不改变药物分子式，其他三项都是炮制目的。&quot;,&quot;tcm-002&quot;:&quot;软化程度用弯曲法、指掐法、穿刺法检查，不用燃烧法。&quot;,&quot;tcm-003&quot;:&quot;热敏性、软化点低的药材用低温粉碎，避免受热破坏。&quot;,&quot;tcm-004&quot;:&quot;石油醚是亲脂性有机溶剂；乙醇、丙酮、甲醇亲水性较强。&quot;,&quot;tcm-005&quot;:&quot;乙醇含量 50%~60% 时主要沉淀除去淀粉、多糖等杂质。&quot;,&quot;tcm-006&quot;:&quot;软材经验标准是\&quot;手握成团、轻压即散\&quot;。&quot;,&quot;tcm-007&quot;:&quot;片剂受震动或放置后裂开叫裂片。&quot;,&quot;tcm-008&quot;:&quot;老蜜黏性强，适合矿物质、纤维质等黏性差的药材。&quot;,&quot;tcm-009&quot;:&quot;水溶性基质滴丸用液体石蜡作冷凝介质（互不相溶）。&quot;,&quot;tcm-010&quot;:&quot;炼糖可使部分蔗糖转化，防止糖浆返砂（结晶）。&quot;,&quot;tcm-011&quot;:&quot;GMP 核心理念是\&quot;质量是生产出来的\&quot;，不是检验出来的。&quot;,&quot;tcm-012&quot;:&quot;相畏为制：用能抑制药物毒性的辅料炮制，如白矾制半夏。&quot;,&quot;tcm-013&quot;:&quot;含脂肪油多的药材用串油粉碎（加吸油辅料）。&quot;,&quot;tcm-014&quot;:&quot;乙醇是亲水性有机溶剂；石油醚、氯仿、苯是亲脂性。&quot;,&quot;tcm-015&quot;:&quot;醇提水沉是加水降低醇浓度，使树脂、色素等低极性杂质沉淀除去。&quot;,&quot;tcm-016&quot;:&quot;流化床制粒集混合、制粒、干燥于一体，又称一步制粒。&quot;,&quot;tcm-017&quot;:&quot;片面出现花斑、色差属于变色或表面斑点。&quot;,&quot;tcm-018&quot;:&quot;中蜜炼制温度 116~118℃，呈浅黄色、有黏性。&quot;,&quot;tcm-019&quot;:&quot;挤出-滚圆法滚圆转速一般 800 r/min 左右（原卷无答案，请核对）。&quot;,&quot;tcm-020&quot;:&quot;酒剂可加糖或蜂蜜矫味着色，酊剂不加。&quot;,&quot;tcm-021&quot;:&quot;中药制药工艺学必须根植于中医药理论，正确。&quot;,&quot;tcm-022&quot;:&quot;麸炒僵蚕矫臭赋色，属相喜（相资）为制，正确。&quot;,&quot;tcm-023&quot;:&quot;超微粉碎细胞破壁率可达 95% 以上，正确。&quot;,&quot;tcm-024&quot;:&quot;渗漉法溶剂从上加、渗漉液从下出，正确。&quot;,&quot;tcm-025&quot;:&quot;非极性树脂适合非极性成分；黄酮、萜类极性中等，应用弱极性或中极性树脂，故错。&quot;,&quot;tcm-026&quot;:&quot;颗粒剂水分 &lt;8.0%、干燥失重 &lt;2.0%，正确。&quot;,&quot;tcm-027&quot;:&quot;粉衣层的作用就是消除棱角、使片形圆整，正确。&quot;,&quot;tcm-028&quot;:&quot;蜡丸制备需 60℃ 保温，保证可塑性，正确。&quot;,&quot;tcm-029&quot;:&quot;熔融不完全、混合不匀会造成丸重差异，正确。&quot;,&quot;tcm-030&quot;:&quot;收膏时稠度增大要降温、勤搅拌、除浮沫，正确。&quot;,&quot;tcm-031&quot;:&quot;它是传统中药学与现代工程技术的交叉学科，正确。&quot;,&quot;tcm-032&quot;:&quot;炒黄文火、炒焦中火、炒炭武火，正确。&quot;,&quot;tcm-033&quot;:&quot;湿法粉碎加液研磨，可减少粉尘、防止有效成分损失，正确。&quot;,&quot;tcm-034&quot;:&quot;贵重、毒性、高浓度药材宜用渗漉法，浸渍法效率低，故错。&quot;,&quot;tcm-035&quot;:&quot;纳滤适合分离分子量几百的成分，操作压力一般 &lt;1MPa，正确。&quot;,&quot;tcm-036&quot;:&quot;双筛分法要求未过 1 号筛与过 5 号筛之和 ≤15%，正确。&quot;,&quot;tcm-037&quot;:&quot;CAP 是肠溶型包衣材料，正确。&quot;,&quot;tcm-038&quot;:&quot;糊丸糊粉用量以药粉总量的 30%~35% 为宜，正确。&quot;,&quot;tcm-039&quot;:&quot;小丸粒径 0.5~3.5mm，可装胶囊，正确。&quot;,&quot;tcm-040&quot;:&quot;露剂即含挥发性成分饮片经水蒸气蒸馏制得的芳香水剂，正确。&quot;,&quot;tcm-041&quot;:&quot;《新修本草》是我国第一部官修本草，也被称为世界上第一部药典。&quot;,&quot;tcm-042&quot;:&quot;用与药物药性相近的辅料增强疗效，称相资为制。&quot;,&quot;tcm-043&quot;:&quot;混合机制：对流混合、扩散混合、剪切混合。&quot;,&quot;tcm-044&quot;:&quot;提取推动力是浓度差，浓度差越大浸出越快。&quot;,&quot;tcm-045&quot;:&quot;浸渍法一般浸渍 24 小时以上。&quot;,&quot;tcm-046&quot;:&quot;膜分离按孔径从大到小：微滤、超滤、纳滤、反渗透，题中缺超滤。&quot;,&quot;tcm-047&quot;:&quot;颗粒剂按溶解性能分可溶、混悬、泡腾颗粒。&quot;,&quot;tcm-048&quot;:&quot;粉衣层用于消除棱角、使片形圆整。&quot;,&quot;tcm-049&quot;:&quot;滴丸基质分水溶性和脂溶性（非水溶性）两类。&quot;,&quot;tcm-050&quot;:&quot;酒剂用白酒（乙醇）浸提。&quot;,&quot;tcm-051&quot;:&quot;《太平惠民和剂局方》是第一部官方主持编撰的成方制剂规范。&quot;,&quot;tcm-052&quot;:&quot;相畏为制的典型是白矾制半夏，降低毒性。&quot;,&quot;tcm-053&quot;:&quot;不经湿润直接粉碎叫干法粉碎。&quot;,&quot;tcm-054&quot;:&quot;溶解遵循\&quot;相似相溶\&quot;原理。&quot;,&quot;tcm-055&quot;:&quot;沉降分离分重力沉降和离心分离。&quot;,&quot;tcm-056&quot;:&quot;干法制粒分滚压法和压片法。&quot;,&quot;tcm-057&quot;:&quot;微粉硅胶是优良助流剂。&quot;,&quot;tcm-058&quot;:&quot;泛制法靠\&quot;加水湿润→撒粉→滚转\&quot;使丸粒增大，即泛制（泛丸）。&quot;,&quot;tcm-059&quot;:&quot;密度相近才能保证液滴沉降速度适当、丸形圆整。&quot;,&quot;tcm-060&quot;:&quot;糖浆剂蔗糖含量不低于 45%（g/ml）。&quot;,&quot;tcm-061&quot;:&quot;要点：中药材经炮制加工后可直接用于临床或制剂，是中间产品。&quot;,&quot;tcm-062&quot;:&quot;要点：效率高、条件温和、能耗低、无污染、可连续化、分离范围广。&quot;,&quot;tcm-063&quot;:&quot;要点：一罐多用、密闭、可加压/减压、带搅拌循环、出渣方便。&quot;,&quot;tcm-064&quot;:&quot;流程：粉碎→过筛→混合→制软材→制粒→干燥→整粒→总混→压片→包衣→包装。&quot;,&quot;tcm-065&quot;:&quot;要点：药材（粉碎度、质地）、溶剂（种类、用量、pH）、温度时间次数、浓度差、提取方式。&quot;,&quot;tcm-066&quot;:&quot;要点：改善流动性、防止分层、提高可压性、减少粉尘、便于干燥贮存。&quot;,&quot;tcm-067&quot;:&quot;流程：隔离层→粉衣层→糖衣层→色糖衣层→打光；隔离防潮、粉衣消棱角、糖衣增甜光滑、色衣遮光识别、打光防潮。&quot;,&quot;tcm-068&quot;:&quot;要点：属浓缩丸；部分提取浓缩成膏、部分粉碎，膏粉制丸；优势是体积小、剂量准、易贮存。&quot;,&quot;tcm-069&quot;:&quot;要点：热溶/冷溶/混合三法；挥发油单提后低温增溶加入；防沉淀靠醇沉过滤、调 pH、加助悬剂。&quot;,&quot;tcm-070&quot;:&quot;要点：熔融混匀、温度与滴速稳定、冷凝液温度合适；PEG 水溶性基质，液体石蜡不互溶、密度相近。&quot;};
+const BUILTIN_FIX={&quot;tcm-015&quot;:{&quot;ans&quot;:&quot;B&quot;}};
+function upgradeBuiltinAnalysis(){
+  var n=0;
+  try{
+    QUESTIONS.forEach(function(q){
+      var a=BUILTIN_ANALYSIS[q.id];
+      if(a &amp;&amp; q.analysis!==a){ q.analysis=a; n++; }
+      var f=BUILTIN_FIX[q.id];
+      if(f &amp;&amp; q.ans!==f.ans){ q.ans=f.ans; n++; }
+    });
+    if(n) save();
+  }catch(e){}
+  return n;
 }
 
 /* ========== 数据层（多存档，每人独立） ========== */
@@ -3997,7 +4044,7 @@ function bankDel(id){
   $('beDel').addEventListener('click',()=&gt;{
     QUESTIONS=QUESTIONS.filter(x=&gt;x.id!==id);
     delete wrongSet[id]; delete favs[id];
-    save(); renderBank(); renderTop(); closeModal(); toast('已删除');
+    save(); pruneSession(); renderBank(); renderBankPills(); renderTop(); renderPractice(); closeModal(); toast('已删除');
   });
 }
 
@@ -4065,9 +4112,16 @@ function bankDelBank(){
   openModal('&lt;h3&gt;删除题库&lt;/h3&gt;&lt;p class=&quot;muted&quot;&gt;确定删除「'+esc(bankSubj)+' / '+esc(bankBank)+'」下的全部 '+n+' 道题吗？此操作不可恢复。&lt;/p&gt;'
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn danger&quot; id=&quot;bdOK&quot;&gt;删除全部 '+n+' 题&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;');
   $('bdOK').addEventListener('click',()=&gt;{
-    QUESTIONS=QUESTIONS.filter(q=&gt;!(normSubj(q.subj)===bankSubj&amp;&amp;normBank(q.bank)===bankBank));
-    wrongSet={}; favs={};
-    save(); bankBank=''; renderBank(); renderTop(); closeModal(); toast('题库已删除');
+    /* 只清掉这套题自己的错题/收藏记录，别把别的题库的记录一起抹了；
+       删完还要把当前轮次里的这些题剔掉，否则答题卡会留一排点不动的格子。 */
+    const gone=QUESTIONS.filter(function(q){ return normSubj(q.subj)===bankSubj&amp;&amp;normBank(q.bank)===bankBank; });
+    const ids={}; gone.forEach(function(q){ ids[q.id]=1; delete wrongSet[q.id]; delete favs[q.id]; });
+    QUESTIONS=QUESTIONS.filter(function(q){ return !ids[q.id]; });
+    if(sBank===normSubj(bankSubj)+'|||'+normBank(bankBank)) sBank='';
+    bankTombAdd(normSubj(bankSubj),normBank(bankBank));
+    save(); pruneSession(); bankBank='';
+    renderBank(); renderBankPills(); renderTop(); renderPractice(); closeModal();
+    toast('题库已删除（'+gone.length+' 题）');
   });
 }
 function subjRename(){
@@ -4086,9 +4140,14 @@ function subjDelete(){
   openModal('&lt;h3&gt;删除学科&lt;/h3&gt;&lt;p class=&quot;muted&quot;&gt;确定删除「'+esc(bankSubj)+'」下的全部 '+n+' 道题吗？此操作不可恢复。&lt;/p&gt;'
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn danger&quot; id=&quot;sdOK&quot;&gt;删除全部 '+n+' 题&lt;/button&gt;&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;');
   $('sdOK').addEventListener('click',()=&gt;{
-    QUESTIONS=QUESTIONS.filter(q=&gt;normSubj(q.subj)!==bankSubj);
-    wrongSet={}; favs={};
-    save(); bankSubj=''; renderBank(); renderTop(); closeModal(); toast('学科已删除');
+    const gone=QUESTIONS.filter(function(q){ return normSubj(q.subj)===bankSubj; });
+    const ids={}; gone.forEach(function(q){ ids[q.id]=1; delete wrongSet[q.id]; delete favs[q.id]; });
+    QUESTIONS=QUESTIONS.filter(function(q){ return !ids[q.id]; });
+    if(sBank&amp;&amp;sBank.split('|||')[0]===normSubj(bankSubj)) sBank='';
+    gone.forEach(function(q){ bankTombAdd(normSubj(q.subj),normBank(q.bank)); });
+    save(); pruneSession(); bankSubj='';
+    renderBank(); renderBankPills(); renderTop(); renderPractice(); closeModal();
+    toast('学科已删除（'+gone.length+' 题）');
   });
 }
 function bankExport(){
@@ -4110,6 +4169,47 @@ let sDone=0, sOk=0;  // 本轮统计
 let sMark={};         // 本轮每题结果 {qid:{ok,user}}
 let curPerm=null;     // 当前选择题选项乱序（显示位置 -&gt; 原始索引）
 let sPerm={};         // 本轮每题稳定乱序 {qid:perm}
+let sBank='';         // 只刷某一套题库：'学科|||题库'；空 = 全部
+
+/* ---------- 进度存档：关掉浏览器再打开，能接着上次那题往下做 ---------- */
+function progressKey(){ return 'kys_progress_'+curId; }
+function saveProgress(){
+  try{
+    localStorage.setItem(progressKey(),JSON.stringify({
+      v:1,session:session,sIdx:sIdx,sMode:sMode,sLevel:sLevel,sBank:sBank,sMark:sMark,sOk:sOk,sDone:sDone,t:Date.now()
+    }));
+  }catch(e){}
+}
+function loadProgress(){
+  try{
+    const o=JSON.parse(localStorage.getItem(progressKey())||'null');
+    if(!o||!Array.isArray(o.session)) return false;
+    const ids={}; QUESTIONS.forEach(function(q){ ids[q.id]=1; });
+    const keep=o.session.filter(function(id){ return ids[id]; });
+    if(!keep.length) return false;
+    session=keep;
+    sIdx=Math.min(Math.max(0,o.sIdx|0),keep.length);
+    sMode=o.sMode||'order'; sLevel=o.sLevel||''; sBank=o.sBank||'';
+    sMark=o.sMark||{}; sOk=o.sOk|0; sDone=o.sDone|0;
+    return true;
+  }catch(e){ return false; }
+}
+/* 删题/删题库之后，把已经不存在的题从当前轮次里剔掉（否则答题卡上会留一排点不动的格子） */
+function pruneSession(){
+  if(!session.length) return;
+  const ids={}; QUESTIONS.forEach(function(q){ ids[q.id]=1; });
+  const before=session.length;
+  session=session.filter(function(id){ return ids[id]; });
+  if(session.length!==before){
+    if(sIdx>=session.length) sIdx=0;
+    saveProgress();
+  }
+}
+/* 只刷某一套题库 */
+function setBank(v){
+  sBank=v||'';
+  pickSession(); renderBankPills(); renderPractice();
+}
 /* 真随机取 [0,n)：优先 crypto，拿不到才退回 Math.random */
 function rndInt(n){ try{ const b=new Uint32Array(1); (window.crypto||window.msCrypto).getRandomValues(b); return b[0]%n; }catch(e){ return Math.floor(Math.random()*n); } }
 /* Fisher–Yates：每个排列等概率，不是 sort(()=>Math.random()-.5) 那种伪乱序 */
@@ -4131,6 +4231,10 @@ function pickSession(){
   const prevSig=session.join(',');
   let pool=QUESTIONS.filter(q=&gt;{
     if(sLevel&amp;&amp;q.level!==sLevel) return false;
+    if(sBank){
+      const parts=sBank.split('|||');
+      if(normSubj(q.subj)!==parts[0]||normBank(q.bank)!==parts[1]) return false;
+    }
     if(sMode==='wrong'&amp;&amp;!wrongSet[q.id]) return false;
     if(sMode==='fav'&amp;&amp;!favs[q.id]) return false;
     return true;
@@ -4142,6 +4246,34 @@ function pickSession(){
   }
   session=pool.map(q=&gt;q.id);
   sIdx=0; sDone=0; sOk=0; sMark={}; curPerm=null; sPerm={};
+  saveProgress();
+}
+/* 题库下拉：全部 + 每一套（带题数），收藏题也跟着按这套筛 */
+function renderBankPills(){
+  const sel=$('pBankSel'); if(!sel) return;
+  const banks={};
+  QUESTIONS.forEach(function(q){
+    const k=normSubj(q.subj)+'|||'+normBank(q.bank);
+    banks[k]=(banks[k]||0)+1;
+  });
+  if(sBank &amp;&amp; !banks[sBank]) sBank='';
+  const keys=Object.keys(banks).sort();
+  let h='&lt;option value=&quot;&quot;&gt;全部题库（'+QUESTIONS.length+' 题）&lt;/option&gt;';
+  keys.forEach(function(k){
+    const p=k.split('|||');
+    h+='&lt;option value=&quot;'+esc(p[0]+'|||'+p[1])+'&quot;'+(k===sBank?' selected':'')+'&gt;'+esc(p[1])+'（'+banks[k]+' 题）&lt;/option&gt;';
+  });
+  sel.innerHTML=h;
+  sel.value=sBank;
+  const n=$('pBankN');
+  if(n){
+    if(!sBank){ n.textContent=''; }
+    else{
+      const bk=sBank.split('|||')[1];
+      const noKey=(bk==='GMP 试题'||bk==='中药复习题（专升本）');
+      n.textContent=noKey?('这套原卷没给标准答案，解析按教材整理，请以老师答案为准'):'';
+    }
+  }
 }
 function renderModePills(){
   const modes=[['order','顺序练习'],['shuffle','乱序练习'],['wrong','错题重做'],['fav','★ 收藏题']];
@@ -4161,6 +4293,9 @@ function toggleFav(id){
   if($('bankList')) renderBank();
 }
 function renderPractice(){
+  pruneSession();
+  saveProgress();
+  renderBankPills();
   if(!QUESTIONS.length){
     $('pCard').innerHTML='&lt;div class=&quot;imp-hint&quot;&gt;题库为空，先去「我的题库」导入。&lt;/div&gt;';
     $('pProgress').textContent='';
@@ -4615,10 +4750,13 @@ function renderTop(){
 /* ========== 初始化 ========== */
 load();
 seedHgQuiz();
+upgradeBuiltinAnalysis();
 renderTop();
 renderSettings();
 renderModePills();
 renderLevelPills();
+renderBankPills();
+loadProgress();
 renderPractice();
 bindEvents();
 &lt;/script&gt;
@@ -8836,7 +8974,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-11-05.44';
+const APP_BUILD='2026-11-06.45';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
