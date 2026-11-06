@@ -3065,6 +3065,8 @@ h3{font-size:16px;margin-bottom:10px;color:var(--brand-ink)}
 .ans-mine span{color:var(--text)}
 .ans-note{margin-top:10px;font-size:12.5px;line-height:1.7;color:var(--gold);background:var(--gold-soft);border-radius:10px;padding:8px 10px}
 .ans-grade{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.ana-box{margin-top:10px;background:var(--bg);border-left:3px solid var(--brand);border-radius:8px;padding:9px 11px;font-size:13.5px;line-height:1.75;color:var(--text2)}
+.ana-box b{color:var(--brand-ink);margin-right:6px;font-weight:800}
 .ans-grade span{font-size:13px;color:var(--text2)}
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
 .stat-box{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
@@ -3270,6 +3272,7 @@ function bankTombAdd(subj,bank){
 function bankTombClear(){
   try{ localStorage.removeItem('kys_bank_del'); }catch(e){}
   var n=seedHgQuiz();
+  var a=upgradeBuiltinAnalysis();   /* 补回来的题也要带上解析 */
   save(); renderBank(); renderBankPills(); renderTop(); renderPractice();
   toast(n?('已恢复 '+n+' 道内置题'):'内置题库都已经在了');
 }
@@ -3343,7 +3346,9 @@ function switchProfile(id){
   save();
   curId=id; PROFILES.current=id;
   localStorage.setItem(PKEY,JSON.stringify(PROFILES));
-  load(); renderTop(); renderSettings(); renderModePills(); renderPractice();
+  /* 换存档必须把「当前轮次」清干净：否则上一份存档的题目 id、答题标记会串到新存档里 */
+  session=[]; sIdx=0; sMark={}; sDone=0; sOk=0; sBank=''; sMode='order';
+  load(); loadProgress(); renderTop(); renderSettings(); renderModePills(); renderBankPills(); renderPractice();
   if($('bankList')) renderBank();
   toast('已切换到「'+PROFILES.list[id].name+'」');
 }
@@ -3353,7 +3358,8 @@ function newProfile(name){
   curId=id; PROFILES.current=id;
   localStorage.setItem(PKEY,JSON.stringify(PROFILES));
   QUESTIONS=[]; attempts=[]; wrongSet={}; favs={};
-  save(); renderTop(); renderSettings(); renderModePills(); renderPractice();
+  session=[]; sIdx=0; sMark={}; sDone=0; sOk=0; sBank=''; sMode='order';
+  save(); renderTop(); renderSettings(); renderModePills(); renderBankPills(); renderPractice();
   if($('bankList')) renderBank();
   toast('已新建存档「'+PROFILES.list[id].name+'」');
 }
@@ -3369,10 +3375,11 @@ function delProfile(id){
     const keys=Object.keys(PROFILES.list);
     PROFILES.current=keys[0];
     curId=keys[0];
-    load();
+    session=[]; sIdx=0; sMark={}; sDone=0; sOk=0; sBank=''; sMode='order';
+    load(); loadProgress();
   }
   localStorage.setItem(PKEY,JSON.stringify(PROFILES));
-  renderTop(); renderSettings(); renderModePills(); renderPractice();
+  renderTop(); renderSettings(); renderModePills(); renderBankPills(); renderPractice();
   if($('bankList')) renderBank();
   toast('存档已删除');
 }
@@ -4302,6 +4309,13 @@ function renderPractice(){
     return;
   }
   if(!session.length){ pickSession(); }
+  if(!session.length){
+    /* 选了一套还没有错题/收藏的题库时，别显示「本轮完成 共 0 题」 */
+    const why = sMode==='wrong' ? '这套题目前还没有错题' : (sMode==='fav' ? '这套题还没有收藏' : '这套题库是空的');
+    $('pCard').innerHTML='&lt;div class=&quot;imp-hint&quot;&gt;'+why+'。换个题库，或回「我的题库」看看。&lt;/div&gt;';
+    $('pProgress').textContent='';
+    return;
+  }
   if(sIdx&gt;=session.length){
     const undone=session.filter(id=&gt;!(id in sMark));
     if(undone.length){
@@ -4383,7 +4397,7 @@ function reviewResult(q){
   const inp=$('pAnsIn'); if(inp){ inp.disabled=true; }
   $('pResult').innerHTML='&lt;div class=&quot;resultbox '+(m.ok?'ok':'bad')+'&quot;&gt;&lt;div class=&quot;an&quot;&gt;'+(m.ok?'此题答对（回看）':'此题答错（回看）')+'&lt;/div&gt;'
     +'&lt;div&gt;你的答案：'+esc(m.user||'未作答')+'&lt;/div&gt;&lt;div&gt;正确答案：&lt;b&gt;'+esc(ansDisplay(q)||'（未填写）')+'&lt;/b&gt;&lt;/div&gt;'
-    +(q.analysis?'&lt;div style=&quot;margin-top:8px;color:var(--text2)&quot;&gt;解析：'+esc(q.analysis)+'&lt;/div&gt;':'')
+    +(q.analysis?'&lt;div class=&quot;ana-box&quot;&gt;&lt;b&gt;解析&lt;/b&gt;'+esc(q.analysis)+'&lt;/div&gt;':'')
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; onclick=&quot;jumpQ('+Math.min(session.length-1,sIdx+1)+')&quot;&gt;下一题&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
 }
 let curPick=null;
@@ -4470,7 +4484,7 @@ function submitQ(q){
     +'&lt;div class=&quot;an&quot;&gt;'+(ok?'回答正确！':'回答错误')+'&lt;/div&gt;'
     +'&lt;div&gt;你的答案：'+esc(userAns||'未作答')+'&lt;/div&gt;'
     +'&lt;div&gt;正确答案：&lt;b&gt;'+esc(ansDisplay(q)||'（未填写）')+'&lt;/b&gt;&lt;/div&gt;'
-    +(q.analysis?'&lt;div style=&quot;margin-top:8px;color:var(--text2)&quot;&gt;解析：'+esc(q.analysis)+'&lt;/div&gt;':'')
+    +(q.analysis?'&lt;div class=&quot;ana-box&quot;&gt;&lt;b&gt;解析&lt;/b&gt;'+esc(q.analysis)+'&lt;/div&gt;':'')
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; onclick=&quot;nextQ()&quot;&gt;下一题&lt;/button&gt;&lt;button class=&quot;btn&quot; onclick=&quot;skipQ()&quot;&gt;跳过&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
   if((q.type===TYPES.single||q.type===TYPES.multi)&amp;&amp;curPerm){
     const ansDispSet=new Set(normForJudge(q.ans).split('').map(ch=&gt;curPerm.indexOf(ch.charCodeAt(0)-97)));
@@ -4521,6 +4535,8 @@ function selfGrade(qid,ok){
 }
 function recordAttempt(qid,ok){
   attempts.push({qid,t:Date.now(),ok});
+  /* 只留最近 3000 条：刷得久了 attempts 会无限增长，最后把 localStorage 撑爆（写不进去 = 进度全丢） */
+  if(attempts.length&gt;3000) attempts=attempts.slice(-3000);
   if(!ok) wrongSet[qid]=(wrongSet[qid]||0)+1;
   else if(wrongSet[qid]){ wrongSet[qid]=(wrongSet[qid]||0)-1; if(wrongSet[qid]&lt;=0) delete wrongSet[qid]; }
   save();
@@ -8974,7 +8990,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-11-06.45';
+const APP_BUILD='2026-11-06.46';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
