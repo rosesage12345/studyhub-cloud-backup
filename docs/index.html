@@ -3067,6 +3067,8 @@ h3{font-size:16px;margin-bottom:10px;color:var(--brand-ink)}
 .ans-grade{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
 .ana-box{margin-top:10px;background:var(--bg);border-left:3px solid var(--brand);border-radius:8px;padding:9px 11px;font-size:13.5px;line-height:1.75;color:var(--text2)}
 .ana-box b{color:var(--brand-ink);margin-right:6px;font-weight:800}
+.ana-ops{margin-top:8px;text-align:right}
+.ana-ops .btn{min-height:30px;padding:0 12px;font-size:12.5px}
 .ans-grade span{font-size:13px;color:var(--text2)}
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
 .stat-box{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
@@ -3285,7 +3287,7 @@ function upgradeBuiltinAnalysis(){
   try{
     QUESTIONS.forEach(function(q){
       var a=BUILTIN_ANALYSIS[q.id];
-      if(a &amp;&amp; q.analysis!==a){ q.analysis=a; n++; }
+      if(a &amp;&amp; !q.anEdited &amp;&amp; q.analysis!==a){ q.analysis=a; n++; }
       var f=BUILTIN_FIX[q.id];
       if(f &amp;&amp; q.ans!==f.ans){ q.ans=f.ans; n++; }
     });
@@ -4039,7 +4041,9 @@ function bankEdit(id){
     q.stem=$('beStem').value.trim();
     q.opts=$('beOpts').value.split('\n').map(x=&gt;x.trim()).filter(Boolean);
     q.ans=$('beAns').value.trim();
-    q.analysis=$('beAna').value.trim();
+    const _na=$('beAna').value.trim();
+    if(_na!==(q.analysis||'')) q.anEdited=1;
+    q.analysis=_na;
     if(q.subj!==bankSubj||q.bank!==bankBank){ bankSubj=''; bankBank=''; }
     save(); renderBank(); renderTop(); closeModal(); toast('已保存');
   });
@@ -4397,7 +4401,7 @@ function reviewResult(q){
   const inp=$('pAnsIn'); if(inp){ inp.disabled=true; }
   $('pResult').innerHTML='&lt;div class=&quot;resultbox '+(m.ok?'ok':'bad')+'&quot;&gt;&lt;div class=&quot;an&quot;&gt;'+(m.ok?'此题答对（回看）':'此题答错（回看）')+'&lt;/div&gt;'
     +'&lt;div&gt;你的答案：'+esc(m.user||'未作答')+'&lt;/div&gt;&lt;div&gt;正确答案：&lt;b&gt;'+esc(ansDisplay(q)||'（未填写）')+'&lt;/b&gt;&lt;/div&gt;'
-    +(q.analysis?'&lt;div class=&quot;ana-box&quot;&gt;&lt;b&gt;解析&lt;/b&gt;'+esc(q.analysis)+'&lt;/div&gt;':'')
+    +anaBlockHTML(q)
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; onclick=&quot;jumpQ('+Math.min(session.length-1,sIdx+1)+')&quot;&gt;下一题&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
 }
 let curPick=null;
@@ -4484,7 +4488,7 @@ function submitQ(q){
     +'&lt;div class=&quot;an&quot;&gt;'+(ok?'回答正确！':'回答错误')+'&lt;/div&gt;'
     +'&lt;div&gt;你的答案：'+esc(userAns||'未作答')+'&lt;/div&gt;'
     +'&lt;div&gt;正确答案：&lt;b&gt;'+esc(ansDisplay(q)||'（未填写）')+'&lt;/b&gt;&lt;/div&gt;'
-    +(q.analysis?'&lt;div class=&quot;ana-box&quot;&gt;&lt;b&gt;解析&lt;/b&gt;'+esc(q.analysis)+'&lt;/div&gt;':'')
+    +anaBlockHTML(q)
     +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; onclick=&quot;nextQ()&quot;&gt;下一题&lt;/button&gt;&lt;button class=&quot;btn&quot; onclick=&quot;skipQ()&quot;&gt;跳过&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;';
   if((q.type===TYPES.single||q.type===TYPES.multi)&amp;&amp;curPerm){
     const ansDispSet=new Set(normForJudge(q.ans).split('').map(ch=&gt;curPerm.indexOf(ch.charCodeAt(0)-97)));
@@ -4495,6 +4499,34 @@ function submitQ(q){
   }
   playSound(ok);
 }
+/* 解析块：带一个「编辑解析」按钮，随时能自己改 */
+function anaBlockHTML(q){
+  const a=String(q.analysis||'').trim();
+  return '&lt;div class=&quot;ana-box&quot;&gt;&lt;b&gt;解析&lt;/b&gt;'
+    +(a?esc(a):'&lt;span class=&quot;muted&quot;&gt;还没有解析&lt;/span&gt;')
+    +'&lt;div class=&quot;ana-ops&quot;&gt;'
+    +'&lt;button class=&quot;btn&quot; onclick=&quot;editAnalysis(\''+q.id+'\')&quot;&gt;'+(a?'编辑解析':'补一条解析')+'&lt;/button&gt;'
+    +'&lt;/div&gt;&lt;/div&gt;';
+}
+/* 编辑解析：改完就地刷新，不用退出练习 */
+function editAnalysis(id){
+  const q=qById(id); if(!q) return;
+  openModal('&lt;h3&gt;编辑解析&lt;/h3&gt;'
+    +'&lt;div class=&quot;muted&quot; style=&quot;font-size:12.5px;margin-bottom:8px&quot;&gt;'+esc(String(q.stem).slice(0,60))+'&lt;/div&gt;'
+    +'&lt;div class=&quot;fld&quot;&gt;&lt;textarea id=&quot;eaTxt&quot; style=&quot;min-height:170px&quot; placeholder=&quot;写清楚为什么选它、其它选项错在哪&quot;&gt;'+esc(q.analysis||'')+'&lt;/textarea&gt;&lt;/div&gt;'
+    +'&lt;div class=&quot;btn-row&quot;&gt;&lt;button class=&quot;btn primary&quot; id=&quot;eaOK&quot;&gt;保存&lt;/button&gt;'
+    +'&lt;button class=&quot;btn&quot; id=&quot;eaClr&quot;&gt;清空&lt;/button&gt;'
+    +'&lt;button onclick=&quot;closeModal()&quot;&gt;取消&lt;/button&gt;&lt;/div&gt;');
+  $('eaClr').addEventListener('click',function(){ $('eaTxt').value=''; });
+  $('eaOK').addEventListener('click',function(){
+    q.analysis=$('eaTxt').value.trim();
+    q.anEdited=1;          /* 手改过的解析，内置题库升级时不再覆盖 */
+    save(); closeModal();
+    if($('pResult') &amp;&amp; sMark[q.id]) reviewResult(q); else renderPractice();
+    toast('解析已保存');
+  });
+}
+
 /* 参考答案排版：按句号/分号断行，长答案变成好读的条目 */
 function answerBlockHTML(q){
   const raw=String(q.ans||'').trim();
@@ -4517,7 +4549,8 @@ function showSelfGrade(q,userAns){
     +(q.analysis?'&lt;div class=&quot;ans-note&quot;&gt;'+esc(q.analysis)+'&lt;/div&gt;':'')
     +'&lt;div class=&quot;ans-grade&quot;&gt;&lt;span&gt;这题你答上了吗？&lt;/span&gt;'
     +'&lt;button class=&quot;btn ok&quot; onclick=&quot;selfGrade(\''+q.id+'\',true)&quot;&gt;答上了&lt;/button&gt;'
-    +'&lt;button class=&quot;btn danger&quot; onclick=&quot;selfGrade(\''+q.id+'\',false)&quot;&gt;没答上&lt;/button&gt;&lt;/div&gt;';
+    +'&lt;button class=&quot;btn danger&quot; onclick=&quot;selfGrade(\''+q.id+'\',false)&quot;&gt;没答上&lt;/button&gt;'
+    +'&lt;button class=&quot;btn&quot; onclick=&quot;editAnalysis(\''+q.id+'\')&quot;&gt;编辑解析&lt;/button&gt;&lt;/div&gt;';
 }
 /* 「直接看答案」：不写也能看，看完照样自评（不然这一题不进统计） */
 function revealAnswer(qid){
@@ -8990,7 +9023,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-11-06.46';
+const APP_BUILD='2026-11-06.47';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
