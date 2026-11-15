@@ -3103,6 +3103,11 @@ h3{font-size:16px;margin-bottom:10px;color:var(--brand-ink)}
 .ptool-lb{font-size:13px;color:var(--text2);font-weight:700;flex:none}
 .pbanksel{flex:1;min-width:170px;min-height:42px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 10px;font-size:14px}
 .ptool-n{font-size:12px;color:var(--text2)}
+/* 上一题 / 下一题 */
+.qnav{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.qnav .btn{flex:1}
+.qnav-idx{flex:none;min-width:82px;text-align:center;font-size:12.5px;color:var(--text2);font-weight:700}
+.qnav .btn[disabled]{opacity:.4;pointer-events:none}
 .imp-hint{font-size:13px;color:var(--text2);background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px}
 .imp-hint.bad{color:var(--bad);background:var(--bad-soft)}
 @media (max-width:520px){.topbar{position:static}.tabs{overflow-x:auto;flex-wrap:nowrap}.tab{white-space:nowrap;padding:10px 12px}}
@@ -3148,6 +3153,11 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--pink,#ec4899);cur
       &lt;div class=&quot;toolbar&quot; id=&quot;pModePills&quot;&gt;&lt;/div&gt;
       &lt;div class=&quot;toolbar&quot; id=&quot;pLevelPills&quot;&gt;&lt;/div&gt;
       &lt;div class=&quot;progress&quot; id=&quot;pProgress&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;qnav&quot; id=&quot;qnav&quot;&gt;
+        &lt;button class=&quot;btn&quot; id=&quot;qPrev&quot; onclick=&quot;prevQ()&quot;&gt;‹ 上一题&lt;/button&gt;
+        &lt;span class=&quot;qnav-idx&quot; id=&quot;qnavIdx&quot;&gt;&lt;/span&gt;
+        &lt;button class=&quot;btn&quot; id=&quot;qNext&quot; onclick=&quot;nextQ()&quot;&gt;下一题 ›&lt;/button&gt;
+      &lt;/div&gt;
       &lt;div id=&quot;pCard&quot;&gt;&lt;/div&gt;
     &lt;/div&gt;
   &lt;/section&gt;
@@ -4318,12 +4328,13 @@ function renderPractice(){
   pruneSession();
   saveProgress();
   renderBankPills();
+  updateQNav();
   if(!QUESTIONS.length){
     $('pCard').innerHTML='&lt;div class=&quot;imp-hint&quot;&gt;题库为空，先去「我的题库」导入。&lt;/div&gt;';
     $('pProgress').textContent='';
     return;
   }
-  if(!session.length){ pickSession(); }
+  if(!session.length){ pickSession(); updateQNav(); }
   if(!session.length){
     /* 选了一套还没有错题/收藏的题库时，别显示「本轮完成 共 0 题」 */
     const why = sMode==='wrong' ? '这套题目前还没有错题' : (sMode==='fav' ? '这套题还没有收藏' : '这套题库是空的');
@@ -4587,6 +4598,17 @@ function recordAttempt(qid,ok){
   save();
 }
 function nextQ(){ sIdx++; curPick=null; curJudge=null; renderPractice(); }
+function prevQ(){ if(sIdx<=0){ toast('已经是第一题了'); return; } sIdx--; curPick=null; curJudge=null; renderPractice(); }
+/* 上一题 / 下一题的导航条：到边界就置灰 */
+function updateQNav(){
+  const box=$('qnav'); if(!box) return;
+  const n=session.length;
+  if(!n){ box.style.display='none'; return; }
+  box.style.display='flex';
+  $('qnavIdx').textContent = sIdx>=n ? ('已完成 '+n+' 题') : ('第 '+(sIdx+1)+' / '+n+' 题');
+  $('qPrev').disabled = sIdx<=0;
+  $('qNext').disabled = sIdx>=n;
+}
 function skipQ(){ sIdx++; curPick=null; curJudge=null; renderPractice(); }
 
 /* ========== 错题本 ========== */
@@ -9035,7 +9057,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-11-11.48';
+const APP_BUILD='2026-11-15.49';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
