@@ -3545,7 +3545,7 @@ const RE_OPT=/^\s*([A-Ha-h])\s*(?:[\.．、)）:：]|\s+)\s*/;
 const RE_ANS_LINE=/^\s*(?:【?\s*(?:答案|参考答案|标准答案|正确答案)\s*】?|(?:参考答案|标准答案|正确答案|答案))\s*[：:]?\s*(?=[^：:。，,．.\s])([\s\S]+)/;
 const RE_ANS_BRACKET=/[（(]\s*([A-Ha-h]+|[√×对错TF])\s*[）)]/;
 const RE_JSX=/^\s*(?:【?\s*(?:解析|分析|答案解析|详解)\s*】?|解析|分析)\s*[：:]?\s*(?=[^：:。，,．.\s])([\s\S]+)/;
-const RE_OPT_STAR=/([A-Ha-h])\s*[.、)）]\s*[^（(]*[★*※]/;
+const RE_OPT_STAR=/^\s*([A-Ha-h])\s*[.、)）][\s\S]*[★*※]/;
 function isJudgeQ(stem){ return /[（(]\s*[√×对错TF]\s*[）)]/i.test(stem) || (/[（(]\s*[）)]/.test(stem) &amp;&amp; stem.length&lt;=80 &amp;&amp; !/\b[A-Za-z]{3,}\b/.test(stem)); }
 function extractJudgeAns(stem){
   const m=stem.match(/[（(]\s*([√×对错TF])\s*[）)]/i);
@@ -3634,7 +3634,7 @@ function buildQuestion(block,num,ansTable){
     if(br) ans=br[1].toUpperCase().replace('T','对').replace('F','错');
   }
   if(!ans){
-    for(const ol of optLines){ const sm=ol.match(RE_OPT_STAR); if(sm){ ans+=sm[1].toUpperCase(); } }
+    for(const ol of opts){ const sm=ol.match(RE_OPT_STAR); if(sm){ ans+=sm[1].toUpperCase(); } }
   }
   if(!ans){
     const tableA=ansTable[num];
@@ -3665,6 +3665,10 @@ function buildQuestion(block,num,ansTable){
     else if(/^[TF]$/i.test(v)) ans=/^T$/i.test(v)?'对':'错';
     else if(/正确|对/.test(v)&amp;&amp;!/错/.test(v)) ans='对';
     else if(/错误|错/.test(v)) ans='错';
+  }
+  if(type===TYPES.single||type===TYPES.multi){
+    const mm=String(ans).match(/^([A-Ha-h]{1,8})[^A-Za-z]*(.*)$/);
+    if(mm){ if(!analysis) analysis=String(mm[2]||'').trim(); ans=mm[1].toUpperCase(); }
   }
   if(!stem) return null;
   return {id:uid('q'),type,stem,opts,ans:ans.trim(),analysis,src:'导入'};
@@ -9057,7 +9061,7 @@ function backupRemind(){
  * ================================================== */
 const DEFAULT_GH_OWNER='rosesage12345';
 /* 程序版本：界面上会显示，便于确认设备跑的是不是最新版（浏览器缓存排查用） */
-const APP_BUILD='2026-11-15.49';
+const APP_BUILD='2026-11-18.50';
 /* 出于安全，不再内置令牌：本文件会发布到公网，内置令牌等于把备份仓库的钥匙公开。
    首次使用通过一次性链接（.../#t=令牌）或「数据同步 → 高级」面板填入，只存在本机 localStorage。 */
 const DEFAULT_GH_PAT='';
